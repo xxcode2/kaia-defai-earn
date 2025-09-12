@@ -1,0 +1,13 @@
+/* Tailwind v4 */
+@import "tailwindcss";
+
+:root { color-scheme: light; }
+body { background: white; color: #111827; }
+
+/* GANTI baris ini: shadow-soft -> shadow-[...arbitrary value...] */
+.card { @apply rounded-2xl bg-white border border-gray-100 shadow-[0_10px_25px_rgba(0,0,0,0.06)]; }
+
+.btn  { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 font-medium border border-gray-300 hover:bg-gray-50 active:translate-y-[1px] transition; }
+.btn-primary { @apply bg-[#18c29c] text-white border-[#18c29c] hover:bg-[#12a988] hover:border-[#12a988]; }
+.input { @apply w-full rounded-xl border border-gray-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#18c29c]; }
+.label { @apply text-sm text-gray-600; }

@@ -1,0 +1,22 @@
+{
+  "name": "kaia-defai-earn",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "hardhat compile",
+    "deploy:mockusdt": "hardhat run scripts/deploy-mockusdt.ts --network kairos",
+    "deploy:vault": "hardhat run scripts/deploy-vault.ts --network kairos",
+    "test:flow": "hardhat run scripts/test-deposit-withdraw.ts --network kairos",
+    "ui:dev": "cd front-miniapp && npm run dev"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "dotenv": "^16.3.1",
+    "hardhat": "2.26.3",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "@openzeppelin/contracts": "^5.0.2"
+  }
+}

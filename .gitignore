@@ -1,0 +1,19 @@
+# Node
+node_modules/
+package-lock.json
+
+# Hardhat
+artifacts/
+cache/
+typechain-types/
+
+# Env
+.env
+.env.local
+
+# Next.js
+.next/
+out/
+
+# OS
+.DS_Store
