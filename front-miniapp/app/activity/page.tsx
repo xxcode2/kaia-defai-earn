@@ -120,11 +120,7 @@ export default function ActivityPage() {
         </div>
       )}
 
-      {/* Footer */}
-      <p className="text-center text-gray-500 mt-8">
-        Built for{" "}
-        <span className="font-semibold">Kaia Wave Stablecoin Summer Hackathon</span>
-      </p>
+  
     </div>
   );
 }

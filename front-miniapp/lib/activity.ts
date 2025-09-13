@@ -1,130 +1,44 @@
-// front-miniapp/lib/activity.ts
-import { Interface, formatUnits } from "ethers";
-import vaultJson from "./abi/DefaiVault.json";
+import { Interface, Log, JsonRpcProvider } from "ethers";
+import vaultJson from "../lib/abi/DefaiVault.json";
 
-/** ========= util ========= */
-const KAIA_RPC_FALLBACK =
-  process.env.NEXT_PUBLIC_KAIA_RPC || "https://public-en-kairos.node.kaia.io";
-
-// encode alamat (indexed topic)
-function addrTopic(addr: string) {
-  const a = addr.toLowerCase().replace(/^0x/, "");
-  return "0x" + "0".repeat(64 - a.length) + a;
-}
-
-// panggil API route / fallback langsung ke RPC publik
-async function rpcGetLogs(body: {
-  address: string;
-  fromBlock?: string;
-  toBlock?: string;
-  topics?: (string | null)[];
-}) {
-  try {
-    const res = await fetch("/api/logs", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.status !== 404 && !res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(`/api/logs ${res.status} ${JSON.stringify(err)}`);
-    }
-    if (res.ok) return (await res.json()) as any[];
-  } catch {
-    // continue to fallback
-  }
-
-  // fallback direct to RPC
-  const r = await fetch(KAIA_RPC_FALLBACK, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_getLogs",
-      params: [body],
-    }),
-  });
-  if (!r.ok) throw new Error(`rpc fallback ${r.status} ${await r.text()}`);
-  const j = await r.json();
-  if (j?.error) throw new Error(JSON.stringify(j.error));
-  return (j.result ?? []) as any[];
-}
-
-/** ========= main ========= */
+const KAIA_RPC = "https://public-en-kairos.node.kaia.io";
 const iface = new Interface((vaultJson as any).abi);
-const topicDeposit = iface.getEvent("Deposit").topicHash;   // Deposit(address indexed user, uint256 assets, uint256 shares)
-const topicWithdraw = iface.getEvent("Withdraw").topicHash; // Withdraw(address indexed user, uint256 assets, uint256 shares)
 
-const BASE_FROM = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || "0");
+const topicDeposit = iface.getEvent("Deposit").topicHash;
+const topicWithdraw = iface.getEvent("Withdraw").topicHash;
 
-// incremental cache di localStorage, per-user
-function getUserFromBlock(addr: string) {
-  const k = `act_from_${addr.toLowerCase()}`;
-  const v = typeof window !== "undefined" ? localStorage.getItem(k) : null;
-  return v ? Math.max(Number(v), BASE_FROM) : BASE_FROM;
-}
-function setUserFromBlock(addr: string, blk: number) {
-  const k = `act_from_${addr.toLowerCase()}`;
-  try {
-    localStorage.setItem(k, String(blk));
-  } catch {}
-}
-
-export type ActivityRow = {
+export type UserActivity = {
   type: "Deposit" | "Withdraw";
-  amount: number; // USDT
+  amount: number;
   tx: string;
-  block: number;
+  blockNumber: number;
 };
 
-/**
- * Ambil riwayat Activity untuk user (cepat):
- * - Filter langsung pakai topic alamat user (indexed)
- * - Gunakan incremental fromBlock (disimpan di localStorage)
- * - Fallback ke RPC publik jika API route tidak ada
- */
-export async function getUserActivity(addr: string, vaultAddr: string) {
-  const fromBlock = getUserFromBlock(addr);
-  const userT = addrTopic(addr);
+export async function getUserActivity(address: string, vaultAddr: string): Promise<UserActivity[]> {
+  const rpc = new JsonRpcProvider(KAIA_RPC);
+  const fromBlock = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || 0);
 
-  // Deposit milik user
-  const depLogs = await rpcGetLogs({
+  const logs: Log[] = await rpc.getLogs({
     address: vaultAddr.toLowerCase(),
-    topics: [topicDeposit, userT],
-    fromBlock: "0x" + fromBlock.toString(16),
+    topics: [[topicDeposit, topicWithdraw]],
+    fromBlock,
     toBlock: "latest",
   });
 
-  // Withdraw milik user
-  const wLogs = await rpcGetLogs({
-    address: vaultAddr.toLowerCase(),
-    topics: [topicWithdraw, userT],
-    fromBlock: "0x" + fromBlock.toString(16),
-    toBlock: "latest",
-  });
-
-  const logs = [...depLogs, ...wLogs];
-  if (logs.length === 0) return [];
-
-  // update incremental pointer
-  const maxBlk = logs.reduce(
-    (m: number, l: any) => Math.max(m, Number(l.blockNumber)),
-    fromBlock
-  );
-  setUserFromBlock(addr, maxBlk + 1);
-
-  const items: ActivityRow[] = logs.map((l: any) => {
+  const acts: UserActivity[] = [];
+  for (const l of logs) {
     const ev = iface.parseLog(l)!;
-    return {
-      type: ev.name as ActivityRow["type"],
-      amount: Number(formatUnits(ev.args[1], 6)), // USDT 6 desimal
-      tx: l.transactionHash as string,
-      block: Number(l.blockNumber),
-    };
-  });
+    const who = (ev.args[0] as string).toLowerCase();
+    if (who !== address.toLowerCase()) continue;
 
-  // terbaru dulu
-  items.sort((a, b) => b.block - a.block);
-  return items;
+    acts.push({
+      type: ev.name as "Deposit" | "Withdraw",
+      amount: Number(ev.args[1]) / 1e6,
+      tx: l.transactionHash,
+      blockNumber: Number(l.blockNumber),
+    });
+  }
+
+  // newest first
+  return acts.sort((a, b) => b.blockNumber - a.blockNumber);
 }

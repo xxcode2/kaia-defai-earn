@@ -90,4 +90,8 @@ Copy code
 cd front-miniapp
 npm install
 npm run dev
+<<<<<<< HEAD
 Frontend default di http://localhost:3000.
+=======
+Frontend default di http://localhost:3000.
+>>>>>>> d22a93d (✨ UI revamp: sidebar nav, improved Profile (copy/share, badges, points), remove top navbar)
