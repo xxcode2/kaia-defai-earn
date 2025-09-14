@@ -2,7 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
-import { BrowserProvider, Contract, Log, formatUnits, parseUnits } from "ethers";
+import {
+  BrowserProvider,
+  Contract,
+  Log,
+  formatUnits,
+  parseUnits,
+} from "ethers";
 import usdtJson from "@/lib/abi/USDT.json";
 import vaultJson from "@/lib/abi/DefaiVault.json";
 
@@ -14,25 +20,16 @@ const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || "1001");
 const APY_PCT = Number(process.env.NEXT_PUBLIC_APY || "5");
 const SCOPE = (process.env.NEXT_PUBLIC_SCOPE || "https://kairos.scope.kaia.io").replace(/\/+$/, "");
 
-/* ===== Locked APY & Goal (optional) ===== */
-const APY_LOCK_30 = Number(process.env.NEXT_PUBLIC_APY_LOCK_30 || "7");
-const APY_LOCK_60 = Number(process.env.NEXT_PUBLIC_APY_LOCK_60 || "8.5");
-const APY_LOCK_90 = Number(process.env.NEXT_PUBLIC_APY_LOCK_90 || "10");
-const LOCKED_VAULT = process.env.NEXT_PUBLIC_LOCKED_VAULT || "";
-const COMMUNITY_GOAL = Number(process.env.NEXT_PUBLIC_COMMUNITY_GOAL || "1000000"); // 1,000,000
-
 /* ================== CONST ================== */
 const SHARE_DECIMALS = 18;
+const COMMUNITY_GOAL = 1_000_000; // USDT target goal
 
-// ABI event signatures
-const EV_DEPOSIT =
-  "event Deposit(address indexed user,uint256 assets,uint256 shares)";
-const EV_WITHDRAW =
-  "event Withdraw(address indexed user,uint256 assets,uint256 shares)";
+// ABI event signatures (untuk membaca aktivitas dari log)
+const EV_DEPOSIT = "event Deposit(address indexed user,uint256 assets,uint256 shares)";
+const EV_WITHDRAW = "event Withdraw(address indexed user,uint256 assets,uint256 shares)";
 
 /* ================== TYPES ================== */
 type TabKey = "earn" | "missions" | "activity" | "profile" | "leaderboard";
-
 type Mission = {
   id: string;
   title: string;
@@ -41,11 +38,10 @@ type Mission = {
   claimable: boolean;
   claimed: boolean;
 };
-
 type ChainActivity = {
   type: "Deposit" | "Withdraw";
-  assets: number; // USDT readable
-  shares: number; // shares readable
+  assets: number;
+  shares: number;
   txHash: string;
   blockNumber: number;
   user: string;
@@ -81,18 +77,38 @@ function short(addr?: string, left = 6, right = 4) {
 
 /* ========= Missions persist ========= */
 const DEFAULT_MISSIONS: Mission[] = [
-  { id: "m1", title: "Connect Wallet", pts: 50, progress: 0, claimable: false, claimed: false },
-  { id: "m2", title: "Deposit ≥ 50 USDT", pts: 150, progress: 0, claimable: false, claimed: false },
-  { id: "m3", title: "Try Withdraw", pts: 100, progress: 0, claimable: false, claimed: false },
+  { id: "m1",  title: "Connect Wallet",                 pts: 50,  progress: 0, claimable: false, claimed: false },
+  { id: "m2",  title: "First Deposit ≥ 50 USDT",        pts: 150, progress: 0, claimable: false, claimed: false },
+  { id: "m3",  title: "Try Withdraw",                   pts: 100, progress: 0, claimable: false, claimed: false },
+  { id: "m4",  title: "Reach 500 USDT (personal)",      pts: 120, progress: 0, claimable: false, claimed: false },
+  { id: "m5",  title: "Reach 1,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
+  { id: "m6",  title: "Make 3 Deposits",                pts: 150, progress: 0, claimable: false, claimed: false },
+  { id: "m7",  title: "Stay Staked for 7 days",         pts: 150, progress: 0, claimable: false, claimed: false },
+  { id: "m8",  title: "Use Locked (Demo) once",         pts: 80,  progress: 0, claimable: false, claimed: false },
+  { id: "m9",  title: "Top 100 Leaderboard (any time)", pts: 250, progress: 0, claimable: false, claimed: false },
+  { id: "m10", title: "Share Referral Link",            pts: 100, progress: 0, claimable: false, claimed: false },
+  { id: "m11",  title: "Reach 10,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
+  { id: "m11",  title: "Reach 15,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
 ];
+
 const MISS_KEY = (addr: string) => `moreearn.missions:${addr?.toLowerCase() || "guest"}`;
 function loadMissions(addr: string): Mission[] {
   try {
     const raw = localStorage.getItem(MISS_KEY(addr));
     const parsed = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(parsed)) return parsed as Mission[];
+    return mergeMissions(parsed);
   } catch {}
   return DEFAULT_MISSIONS;
+}
+
+function mergeMissions(saved: Mission[] | null): Mission[] {
+  if (!saved || !Array.isArray(saved)) return DEFAULT_MISSIONS;
+  // gabungkan berdasarkan id: data lama dipertahankan, misi baru di-inject
+  const byId = new Map(saved.map(m => [m.id, m]));
+  return DEFAULT_MISSIONS.map(def => {
+    const old = byId.get(def.id);
+    return old ? { ...def, ...old } : def;
+  });
 }
 function saveMissions(addr: string, data: Mission[]) {
   try {
@@ -127,12 +143,12 @@ export default function Page() {
   const [walletUSDT, setWalletUSDT] = useState<number>(0);
   const [vaultTVL, setVaultTVL] = useState<number>(0);
 
-  // raw bigints (supaya konversi akurat)
+  // shares/assets raw
   const [userSharesRaw, setUserSharesRaw] = useState<bigint>(0n);
   const [totalSharesRaw, setTotalSharesRaw] = useState<bigint>(0n);
   const [totalAssetsRaw, setTotalAssetsRaw] = useState<bigint>(0n);
 
-  // readable numbers untuk UI
+  // readable
   const [userShares, setUserShares] = useState<number>(0);
   const [totalShares, setTotalShares] = useState<number>(0);
   const [totalAssets, setTotalAssets] = useState<number>(0);
@@ -144,19 +160,21 @@ export default function Page() {
   // forms
   const [depAmt, setDepAmt] = useState("100");
   const [wdAmt, setWdAmt] = useState("0");
-  const [wdMode, setWdMode] = useState<"usdt" | "shares">("usdt"); // default USDT
 
-  // Deposit plan (flex/locked)
-  const [plan, setPlan] = useState<"flex" | "locked">("flex");
-  const [lockDays, setLockDays] = useState<30 | 60 | 90>(30);
-  const activeApy =
-    plan === "flex"
-      ? APY_PCT
-      : lockDays === 30
-      ? APY_LOCK_30
-      : lockDays === 60
-      ? APY_LOCK_60
-      : APY_LOCK_90;
+  // earn mode
+  type EarnMode = "flexible" | "locked";
+  const [earnMode, setEarnMode] = useState<EarnMode>("flexible");
+  const LOCKED_OPTIONS = [
+    { id: "l30", label: "30 days → 7% APY", apy: 7 },
+    { id: "l60", label: "60 days → 8.5% APY", apy: 8.5 },
+    { id: "l90", label: "90 days → 10% APY", apy: 10 },
+  ];
+  const [lockedPlan, setLockedPlan] = useState<string>(LOCKED_OPTIONS[0].id);
+
+  // demo: catatan locked positions (off-chain)
+  const [lockedPositions, setLockedPositions] = useState<
+    { plan: string; amount: number; start: number }[]
+  >([]);
 
   // activity + pagination
   const [activity, setActivity] = useState<ChainActivity[]>([]);
@@ -168,7 +186,8 @@ export default function Page() {
 
   // missions
   const [missions, setMissions] = useState<Mission[]>(() => DEFAULT_MISSIONS);
-  const userWithdrewRef = useRef(false);
+  const depositCountRef = useRef(0);
+  const connectedAtRef = useRef<number | null>(null);
 
   // derived
   const userAssetsEq = useMemo(() => {
@@ -182,7 +201,7 @@ export default function Page() {
     [missions]
   );
 
-  // leaderboard from chain activity deposits
+  // leaderboard dari chain deposits
   const chainRanks = useMemo(() => {
     const map = new Map<string, number>();
     for (const a of activity) {
@@ -194,20 +213,22 @@ export default function Page() {
       .sort((a, b) => b.pts - a.pts);
   }, [activity]);
 
-  const points = useMemo(() => 120 + missionPts, [missionPts]);
+  const basePoints = 120; // contoh poin dasar off-chain
+  const totalPoints = useMemo(() => basePoints + missionPts, [missionPts]);
 
   const leaders = useMemo(() => {
-    const list = chainRanks.slice(0, 100); // TOP 100
+    // top 100
+    const list = chainRanks.slice(0, 100);
     const meIdx = list.findIndex((l) => l.addr.toLowerCase() === address?.toLowerCase());
     if (address) {
       if (meIdx >= 0) {
-        list[meIdx] = { ...list[meIdx], pts: list[meIdx].pts + points };
+        list[meIdx] = { ...list[meIdx], pts: list[meIdx].pts + totalPoints };
       } else {
-        list.push({ addr: address, pts: points });
+        list.push({ addr: address, pts: totalPoints });
       }
     }
     return list.sort((a, b) => b.pts - a.pts);
-  }, [chainRanks, address, points]);
+  }, [chainRanks, address, totalPoints]);
 
   /* ===== Missions persist (load/save) ===== */
   useEffect(() => {
@@ -266,67 +287,93 @@ export default function Page() {
   /* ===== Auto-progress missions ===== */
   useEffect(() => {
     if (!address) return;
+    // m1 connect
     setMissions((prev) =>
       prev.map((m) => (m.id === "m1" ? { ...m, progress: 100, claimable: !m.claimed } : m))
     );
+    connectedAtRef.current = Date.now();
   }, [address]);
 
   useEffect(() => {
-    if (userAssetsEq >= 50) {
-      setMissions((prev) =>
-        prev.map((m) => (m.id === "m2" ? { ...m, progress: 100, claimable: !m.claimed } : m))
-      );
-    }
+    // m4 & m5: personal TVL thresholds
+    setMissions((prev) =>
+      prev.map((m) => {
+        if (m.id === "m4") {
+          const done = userAssetsEq >= 500;
+          return { ...m, progress: done ? 100 : Math.min(100, (userAssetsEq / 500) * 100), claimable: done && !m.claimed };
+        }
+        if (m.id === "m5") {
+          const done = userAssetsEq >= 1000;
+          return { ...m, progress: done ? 100 : Math.min(100, (userAssetsEq / 1000) * 100), claimable: done && !m.claimed };
+        }
+        return m;
+      })
+    );
   }, [userAssetsEq]);
 
+  useEffect(() => {
+    // m7 stay staked 7 days (simulasi: kalau connected > 1 menit, anggap complete)
+    const t = setInterval(() => {
+      if (!connectedAtRef.current) return;
+      const mins = (Date.now() - connectedAtRef.current) / 60000;
+      if (mins >= 1) {
+        setMissions((prev) =>
+          prev.map((m) => (m.id === "m7" ? { ...m, progress: 100, claimable: !m.claimed } : m))
+        );
+      }
+    }, 10000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    // m9: top 100 leaderboard
+    const idx = leaders.findIndex((l) => address && l.addr.toLowerCase() === address.toLowerCase());
+    if (idx >= 0 && idx < 100) {
+      setMissions((prev) =>
+        prev.map((m) => (m.id === "m9" ? { ...m, progress: 100, claimable: !m.claimed } : m))
+      );
+    }
+  }, [leaders, address]);
+
   /* ========== Actions ========== */
-  async function onDeposit() {
+  async function onDepositFlexible() {
     try {
       setLoading(true);
       const { signer } = await getProviderAndSigner();
       const usdt: any = new Contract(USDT, usdtJson.abi, signer);
-
+      const vault: any = new Contract(VAULT, vaultJson.abi, signer);
       const me = await signer.getAddress();
+
       const assets = parseUnits(depAmt || "0", assetDecimals);
 
-      // approve untuk vault target
-      const targetVaultAddr = plan === "locked" ? (LOCKED_VAULT || VAULT) : VAULT;
-      const allowance: bigint = (await tryCall(usdt, "allowance", me, targetVaultAddr)) ?? 0n;
+      const allowance: bigint = (await tryCall(usdt, "allowance", me, VAULT)) ?? 0n;
       if (allowance < assets) {
-        const txA = await usdt.approve(targetVaultAddr, assets);
+        const txA = await usdt.approve(VAULT, assets);
         toast("Approving USDT…");
         await txA.wait();
       }
 
-      const vaultTarget: any = new Contract(targetVaultAddr, vaultJson.abi, signer);
-
-      if (plan === "locked") {
-        const hasLockedFn =
-          typeof vaultTarget["depositLocked"] === "function" ||
-          typeof vaultTarget["depositLock"] === "function";
-
-        if (hasLockedFn) {
-          const fn = typeof vaultTarget["depositLocked"] === "function" ? "depositLocked" : "depositLock";
-          const tx = await vaultTarget[fn](assets, lockDays);
-          toast("Depositing (locked)...");
-          await tx.wait();
-        } else if (LOCKED_VAULT && targetVaultAddr === LOCKED_VAULT && typeof vaultTarget["deposit"] === "function") {
-          const tx = await vaultTarget.deposit(assets);
-          toast("Depositing to locked vault…");
-          await tx.wait();
-        } else {
-          alert("Locked deposit not supported on this vault");
-          setLoading(false);
-          return;
-        }
-      } else {
-        const flexVault: any = new Contract(VAULT, vaultJson.abi, signer);
-        const tx = await flexVault.deposit(assets);
-        toast("Depositing…");
-        await tx.wait();
-      }
-
+      const tx = await vault.deposit(assets);
+      toast("Depositing…");
+      await tx.wait();
       toast("Deposit success ✅");
+
+      // missions: first deposit + deposit counter
+      depositCountRef.current += 1;
+      setMissions((prev) =>
+        prev.map((m) => {
+          if (m.id === "m2") {
+            const ok = Number(depAmt) >= 50;
+            return { ...m, progress: ok ? 100 : m.progress, claimable: ok && !m.claimed };
+          }
+          if (m.id === "m6") {
+            const prog = Math.min(100, (depositCountRef.current / 3) * 100);
+            return { ...m, progress: prog, claimable: prog >= 100 && !m.claimed };
+          }
+          return m;
+        })
+      );
+
       setTimeout(() => refresh(), 600);
     } catch (e: any) {
       console.error(e);
@@ -336,41 +383,53 @@ export default function Page() {
     }
   }
 
-  async function onWithdraw() {
+  function onDepositLockedDemo() {
+    // Simulasi: tidak memanggil kontrak. Tampilkan toast + ubah missions.
+    const plan = LOCKED_OPTIONS.find((p) => p.id === lockedPlan)?.label || "Locked plan";
+    const amt = Number(depAmt || "0");
+    if (!amt || amt <= 0) {
+      alert("Masukkan jumlah deposit");
+      return;
+    }
+    toast("Locked deposit (Demo) recorded ✅");
+    setLockedPositions((arr) => [...arr, { plan: plan, amount: amt, start: Date.now() }]);
+    // missions
+    setMissions((prev) =>
+      prev.map((m) => (m.id === "m8" ? { ...m, progress: 100, claimable: !m.claimed } : m))
+    );
+    // Optional: hitung juga sebagai deposit count untuk m6
+    depositCountRef.current += 1;
+    setMissions((prev) =>
+      prev.map((m) => (m.id === "m6" ? { ...m, progress: Math.min(100, (depositCountRef.current / 3) * 100), claimable: depositCountRef.current >= 3 && !m.claimed } : m))
+    );
+  }
+
+  async function onWithdrawUSDT() {
     try {
       setLoading(true);
       const { signer } = await getProviderAndSigner();
       const vault: any = new Contract(VAULT, vaultJson.abi, signer);
 
-      let burnSharesRaw: bigint;
-
-      if (wdMode === "shares") {
-        let raw = parseUnits(wdAmt || "0", SHARE_DECIMALS);
-        if (raw >= userSharesRaw && userSharesRaw > 0n) {
-          raw = userSharesRaw - 1n;
-        }
-        burnSharesRaw = raw;
-      } else {
-        const assetsRaw = parseUnits(wdAmt || "0", assetDecimals);
-        if (assetsRaw === 0n || totalAssetsRaw === 0n || totalSharesRaw === 0n) {
-          alert("insufficient");
-          setLoading(false);
-          return;
-        }
-        let s = (assetsRaw * totalSharesRaw) / totalAssetsRaw;
-        if (s > 0n) s = s + 1n;
-        if (s >= userSharesRaw && userSharesRaw > 0n) {
-          s = userSharesRaw - 1n;
-        }
-        burnSharesRaw = s;
+      const assetsRaw = parseUnits(wdAmt || "0", assetDecimals);
+      if (assetsRaw === 0n || totalAssetsRaw === 0n || totalSharesRaw === 0n) {
+        alert("insufficient");
+        setLoading(false);
+        return;
       }
 
-      const tx = await vault.withdraw(burnSharesRaw);
+      // shares = ceil(assets * totalShares / totalAssets) + 1 wei safety
+      let s = (assetsRaw * totalSharesRaw) / totalAssetsRaw;
+      if (s > 0n) s = s + 1n;
+      if (s >= userSharesRaw && userSharesRaw > 0n) {
+        s = userSharesRaw - 1n;
+      }
+
+      const tx = await vault.withdraw(s);
       toast("Withdrawing…");
       await tx.wait();
       toast("Withdraw success ✅");
-      userWithdrewRef.current = true;
 
+      // missions withdraw
       setMissions((prev) =>
         prev.map((m) => (m.id === "m3" ? { ...m, progress: 100, claimable: !m.claimed } : m))
       );
@@ -413,18 +472,14 @@ export default function Page() {
     setDepAmt(String(Math.max(0, walletUSDT)));
   }
   function onMaxWithdraw() {
-    if (wdMode === "shares") {
-      const safe = userSharesRaw > 0n ? userSharesRaw - 1n : 0n;
-      setWdAmt(formatUnits(safe, SHARE_DECIMALS));
-    } else {
-      if (totalAssetsRaw === 0n || totalSharesRaw === 0n || userSharesRaw === 0n) {
-        setWdAmt("0");
-        return;
-      }
-      const burn = userSharesRaw - 1n;
-      const assetsOut = (burn * totalAssetsRaw) / totalSharesRaw;
-      setWdAmt(formatUnits(assetsOut, assetDecimals));
+    // maksimal USDT dari shares user (minus 1 wei share)
+    if (totalAssetsRaw === 0n || totalSharesRaw === 0n || userSharesRaw === 0n) {
+      setWdAmt("0");
+      return;
     }
+    const burn = userSharesRaw - 1n;
+    const assetsOut = (burn * totalAssetsRaw) / totalSharesRaw;
+    setWdAmt(formatUnits(assetsOut, assetDecimals));
   }
 
   /* ====== ACTIVITY ====== */
@@ -432,7 +487,7 @@ export default function Page() {
     try {
       setActLoading(true);
       const { provider } = await getProviderAndSigner();
-      const vaultIface = new Contract(VAULT, vaultJson.abi).interface as any;
+      const vaultIface = new Contract(VAULT, vaultJson.abi).interface;
       const depTopic = vaultIface.getEvent(EV_DEPOSIT).topicHash;
       const wdTopic = vaultIface.getEvent(EV_WITHDRAW).topicHash;
 
@@ -520,7 +575,7 @@ export default function Page() {
                 <NavItem label="Leaderboard" active={tab === "leaderboard"} onClick={() => changeTab("leaderboard")} />
               </nav>
 
-              <div className="hidden md:flex mt-auto items-center justify-between gap-2 text-xs text-slate-500 px-1 pt-4">
+              <div className="hidden md:flex mt-6 items-center justify-between gap-2 text-xs text-slate-500 px-1">
                 <div className="flex items-center gap-2 min-w-0">
                   <Avatar address={address} />
                   <span className="truncate">{address ? short(address) : "Not connected"}</span>
@@ -545,55 +600,26 @@ export default function Page() {
           {tab === "earn" && (
             <>
               <Hero />
-
-              {/* Community Goal + Your Vault Balance (ring) */}
+              {/* top ring + goal */}
               <section className="grid md:grid-cols-2 gap-4">
-                {/* Community goal donut */}
                 <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
-                  <div className="text-sm text-slate-500">Community Goal</div>
-                  <div className="mt-4 flex items-center gap-6">
-                    <div className="relative h-28 w-28">
-                      <svg viewBox="0 0 36 36" className="h-28 w-28 -rotate-90">
-                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(16,185,129,0.15)" strokeWidth="4"></circle>
-                        <circle
-                          cx="18" cy="18" r="15.5" fill="none"
-                          stroke="rgb(16,185,129)" strokeWidth="4" strokeLinecap="round"
-                          strokeDasharray={`${Math.max(0, Math.min(100, (vaultTVL / COMMUNITY_GOAL) * 100)).toFixed(2)}, 100`}
-                        />
-                      </svg>
-                      <div className="absolute inset-3 rounded-full bg-white/90 grid place-items-center">
-                        <div className="text-center">
-                          <div className="text-[10px] uppercase tracking-wide text-slate-500">TVL</div>
-                          <div className="text-sm font-semibold">{fmt(vaultTVL, 0)}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="text-lg font-semibold">
-                        {fmt(vaultTVL, 0)} / {fmt(COMMUNITY_GOAL, 0)} USDT
-                      </div>
-                      <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
-                        <div
-                          className="h-2 bg-emerald-500 rounded-full"
-                          style={{ width: `${Math.max(0, Math.min(100, (vaultTVL / COMMUNITY_GOAL) * 100))}%` }}
-                        />
-                      </div>
-                      <div className="mt-1 text-xs text-slate-500">
-                        {Math.max(0, Math.min(100, (vaultTVL / COMMUNITY_GOAL) * 100)).toFixed(1)}% reached
-                      </div>
+                  <div className="text-sm text-slate-500">TVL</div>
+                  <div className="mt-3 flex items-center gap-6">
+                    <Ring label="TVL" value={vaultTVL} unit="USDT" />
+                    <div>
+                      <div className="text-xl font-semibold tracking-tight">{fmt(vaultTVL)} USDT</div>
+                      <div className="text-xs text-slate-500">of {fmt(COMMUNITY_GOAL)} USDT goal</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Your balance animated ring */}
-                <AnimatedBalance
-                  label="Your Vault Balance"
-                  value={userAssetsEq}
-                  sub={`APY target ${APY_PCT}%`}
-                  daily={daily}
-                  monthly={monthly}
-                />
+                <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
+                  <div className="text-sm text-slate-500">Community Goal</div>
+                  <div className="mt-2 text-lg">
+                    {fmt(vaultTVL)} / {fmt(COMMUNITY_GOAL)} USDT
+                  </div>
+                  <ProgressBar pct={Math.min(100, (vaultTVL / COMMUNITY_GOAL) * 100)} />
+                </div>
               </section>
 
               <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -603,75 +629,112 @@ export default function Page() {
                 <StatCard label="Your shares" value={fmt(userShares, 6)} />
               </section>
 
+              {/* Deposit / Withdraw */}
               <section className="grid md:grid-cols-2 gap-4">
-                {/* Deposit with Flexible/Locked */}
-                <Card title="Deposit">
-                  <div className="mb-3 flex items-center gap-2">
-                    <Button subtle tone={plan === "flex" ? "emerald" : "dark"} onClick={() => setPlan("flex")}>Flexible</Button>
-                    <Button subtle tone={plan === "locked" ? "emerald" : "dark"} onClick={() => setPlan("locked")}>Locked</Button>
-                    {plan === "locked" && (
-                      <div className="ml-auto">
-                        <select
-                          value={lockDays}
-                          onChange={(e) => setLockDays(Number(e.target.value) as 30 | 60 | 90)}
-                          className="rounded-xl border border-black/10 bg-white/80 px-3 py-2 text-sm focus:outline-none"
-                        >
-                          <option value={30}>30 days → {APY_LOCK_30}% APY</option>
-                          <option value={60}>60 days → {APY_LOCK_60}% APY</option>
-                          <option value={90}>90 days → {APY_LOCK_90}% APY</option>
-                        </select>
-                      </div>
-                    )}
+                {/* Deposit */}
+                <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
+                  <div className="flex items-center justify-between">
+                    <div className="text-lg font-medium">Deposit</div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        subtle
+                        size="sm"
+                        tone={earnMode === "flexible" ? "emerald" : "dark"}
+                        onClick={() => setEarnMode("flexible")}
+                      >
+                        Flexible
+                      </Button>
+                      <Button
+                        subtle
+                        size="sm"
+                        tone={earnMode === "locked" ? "emerald" : "dark"}
+                        onClick={() => setEarnMode("locked")}
+                      >
+                        Locked
+                      </Button>
+                    </div>
                   </div>
 
-                  <Input
-                    value={depAmt}
-                    onChange={(v) => setDepAmt(v)}
-                    placeholder="0.00"
-                    suffix={<Button subtle onClick={onMaxDeposit}>Max</Button>}
-                  />
-                  <div className="mt-2 text-xs text-slate-500">
-                    Current APY: <b>{activeApy}%</b> {plan === "locked" && <>· Lock period: <b>{lockDays} days</b></>}
-                  </div>
-                  <Button className="mt-3" size="lg" onClick={onDeposit} disabled={loading || !address}>
-                    {loading ? "Processing…" : "Deposit"}
-                  </Button>
-                  <p className="text-xs text-slate-500 mt-2">* Akan melakukan approve bila diperlukan.</p>
-                </Card>
+                  {earnMode === "locked" && (
+                    <div className="mt-3">
+                      <select
+                        value={lockedPlan}
+                        onChange={(e) => setLockedPlan(e.target.value)}
+                        className="w-full rounded-xl border border-black/10 bg-white/90 px-3 py-2 text-sm"
+                      >
+                        {LOCKED_OPTIONS.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
-                {/* Withdraw */}
-                <Card title="Withdraw">
-                  <div className="mb-2 flex items-center gap-2 text-xs text-slate-500">
-                    <span className="mr-1">Input mode:</span>
-                    <Button subtle size="sm" tone={wdMode === "usdt" ? "emerald" : "dark"} onClick={() => setWdMode("usdt")}>
-                      USDT
-                    </Button>
-                    <Button subtle size="sm" tone={wdMode === "shares" ? "emerald" : "dark"} onClick={() => setWdMode("shares")}>
-                      Shares
-                    </Button>
-                  </div>
-                  <Input
-                    value={wdAmt}
-                    onChange={(v) => setWdAmt(v)}
-                    placeholder="0.000000"
-                    suffix={<Button subtle onClick={onMaxWithdraw}>Max</Button>}
-                  />
-                  <div className="mt-1 text-xs text-slate-500">
-                    Mode: <b>{wdMode === "usdt" ? "USDT (assets)" : "Shares"}</b>
+                  <div className="mt-3">
+                    <Input
+                      value={depAmt}
+                      onChange={(v) => setDepAmt(v)}
+                      placeholder="0.00"
+                      suffix={<Button subtle onClick={onMaxDeposit}>Max</Button>}
+                    />
                   </div>
                   <Button
                     className="mt-3"
                     size="lg"
+                    onClick={earnMode === "flexible" ? onDepositFlexible : onDepositLockedDemo}
+                    disabled={loading || !address}
+                  >
+                    {loading ? "Processing…" : "Deposit"}
+                  </Button>
+
+                  {earnMode === "locked" && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      * Locked mode adalah <b>demo/simulasi off-chain</b> untuk keperluan presentasi. Dana tetap disimpan
+                      di vault flexible, namun kamu mendapatkan progress mission & catatan plan.
+                    </p>
+                  )}
+                </div>
+
+                {/* Withdraw */}
+                <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
+                  <div className="text-lg font-medium">Withdraw</div>
+                  <div className="mt-3">
+                    <Input
+                      value={wdAmt}
+                      onChange={(v) => setWdAmt(v)}
+                      placeholder="0.00"
+                      suffix={<Button subtle onClick={onMaxWithdraw}>Max</Button>}
+                    />
+                  </div>
+                  <div className="mt-1 text-xs text-slate-500">Mode: <b>USDT (assets)</b></div>
+                  <Button
+                    className="mt-3"
+                    size="lg"
                     tone="dark"
-                    onClick={onWithdraw}
+                    onClick={onWithdrawUSDT}
                     disabled={loading || !address}
                   >
                     {loading ? "Processing…" : "Withdraw"}
                   </Button>
-                  <p className="text-xs text-slate-500 mt-2">
-                    * Withdraw membakar <b>shares</b> di kontrak; bila input USDT, sistem mengonversi otomatis.
-                  </p>
-                </Card>
+                </div>
+              </section>
+
+              {/* About Earn */}
+              <section className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
+                <div className="text-lg font-medium">About Earn</div>
+                <ul className="mt-2 space-y-2 text-sm text-slate-700 list-disc pl-5">
+                  <li>Vault menerima <b>USDT</b>. Saat deposit, kamu menerima <b>shares</b> proporsional.</li>
+                  <li>Nilai shares meningkat seiring hasil strategi (auto-compounding). APY target: {APY_PCT}%.</li>
+                  <li>Withdraw input dalam <b>USDT</b> — sistem otomatis mengonversi ke shares yang dibakar.</li>
+                  <li>Semua transaksi tercatat on-chain & bisa dipantau di tab <b>Activity</b>.</li>
+                  {lockedPositions.length > 0 && (
+                    <li>
+                      <b>Locked (Demo):</b> kamu punya {lockedPositions.length} plan tersimpan lokal untuk keperluan
+                      presentasi (off-chain).
+                    </li>
+                  )}
+                </ul>
               </section>
             </>
           )}
@@ -791,62 +854,63 @@ export default function Page() {
             <section className="space-y-6">
               <SectionTitle>Profile</SectionTitle>
 
-              {/* Address + Points combined card */}
-              <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
-                <div className="grid lg:grid-cols-3 gap-4">
-                  {/* Address tools */}
-                  <div className="lg:col-span-1">
-                    <div className="flex items-start gap-4">
-                      <Avatar address={address} />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm text-slate-500">Address</div>
-                        <div className="mt-2 flex items-center gap-2">
-                          <div className="flex-1 min-w-0 rounded-xl border border-black/10 bg-white/70 px-3 py-2 font-mono text-xs text-slate-700 overflow-hidden">
-                            <div className="truncate">{address || "—"}</div>
-                          </div>
-                          {address ? (
-                            <>
-                              <IconButton label="Copy" onClick={() => address && navigator.clipboard?.writeText(address).then(() => toast("Copied"))}>
-                                <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v12h2V3h12V1Zm3 4H8a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2Zm0 15H8V7h11v13Z"/></svg>
-                              </IconButton>
-                              <IconButton label="Explorer" onClick={() => openInExplorer(address)}>
-                                <svg viewBox="0 0 24 24" className="h-5 w-5"><path fill="currentColor" d="M14 3h7v7h-2V6.41l-9.29 9.3-1.42-1.42 9.3-9.29H14V3ZM5 5h6v2H7v10h10v-4h2v6H5V5Z"/></svg>
-                              </IconButton>
-                              <Button subtle size="sm" tone="dark" onClick={disconnectWallet}>Disconnect</Button>
-                            </>
-                          ) : (
-                            <Button subtle size="sm" onClick={connectWallet}>Connect</Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
+              {/* Your Vault Balance */}
+              <AnimatedBalance label="Your Vault Balance" value={+fmt(userAssetsEq, 2).replace(/,/g, "")} sub={`APY target ${APY_PCT}%`} daily={daily} monthly={monthly} />
 
-                  {/* Points summary */}
-                  <div className="lg:col-span-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-slate-500">Your Points</div>
-                      <Pill tone="emerald">{tierLabel(120 + missionPts)} Tier</Pill>
-                    </div>
-                    <div className="mt-1 text-4xl font-semibold tracking-tight">{(120 + missionPts).toLocaleString()}</div>
-                    <div className="mt-3 grid sm:grid-cols-3 gap-3">
-                      <SmallStat label="From Missions" value={missionPts.toLocaleString()} />
-                      <SmallStat label="From Deposits" value={"0"} />
-                      <SmallStat label="Referrals" value="0" />
-                    </div>
-                    <TierProgress points={120 + missionPts} />
-                    <div className="mt-2 text-xs text-slate-500">Points bersifat off-chain untuk gamifikasi.</div>
+              {/* Points & Badges */}
+              <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-500">Your Points</div>
+                  <Pill tone="emerald">{tierLabel(totalPoints)} Tier</Pill>
+                </div>
+                <div className="mt-2 text-4xl font-semibold tracking-tight">{totalPoints.toLocaleString()}</div>
+
+                <div className="mt-3 grid sm:grid-cols-3 gap-3">
+                  <SmallStat label="From Missions" value={missionPts.toLocaleString()} />
+                  <SmallStat label="From Deposits" value={"0"} />
+                  <SmallStat label="Referrals" value={"0"} />
+                </div>
+
+                <TierProgress points={totalPoints} />
+                <div className="mt-3">
+                  <div className="text-sm text-slate-500 mb-2">Badges</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    <Badge className="justify-center">Bronze</Badge>
+                    <Badge className={clsx("justify-center", totalPoints >= 500 ? "" : "opacity-50")}>Silver</Badge>
+                    <Badge className={clsx("justify-center", totalPoints >= 1000 ? "" : "opacity-50")}>Gold</Badge>
+                    <Badge className={clsx("justify-center", totalPoints >= 2000 ? "" : "opacity-50")}>Diamond</Badge>
                   </div>
+                  <div className="mt-2 text-xs text-slate-500">Badges akan terbuka otomatis saat total points melampaui ambang tier.</div>
                 </div>
               </div>
 
               {/* Referral */}
               <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
-                <div className="flex items-center justify-between"><div className="font-medium">Referral</div><Pill tone="emerald">Off-chain points</Pill></div>
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">Referral</div>
+                  <Pill tone="emerald">Off-chain points</Pill>
+                </div>
                 <div className="mt-3 text-xs text-slate-500">Share your link to earn points</div>
                 <div className="mt-2 rounded-xl border border-black/10 bg-white/60 p-3 break-all text-sm">{refLink(address)}</div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Button subtle onClick={() => refLink(address) && navigator.clipboard?.writeText(refLink(address)).then(() => toast("Copied"))} disabled={!address}>Copy link</Button>
+                  <Button
+                    subtle
+                    onClick={() => {
+                      const link = refLink(address);
+                      if (link) {
+                        navigator.clipboard?.writeText(link).then(() => {
+                          toast("Copied");
+                          // m10 share referral
+                          setMissions((prev) =>
+                            prev.map((m) => (m.id === "m10" ? { ...m, progress: 100, claimable: !m.claimed } : m))
+                          );
+                        });
+                      }
+                    }}
+                    disabled={!address}
+                  >
+                    Copy link
+                  </Button>
                   <Button subtle onClick={() => shareLink(refLink(address))} disabled={!address}>Share…</Button>
                 </div>
               </div>
@@ -886,7 +950,7 @@ export default function Page() {
                   </ol>
                 )}
               </div>
-              <p className="text-xs text-slate-500">Leaderboard dihitung dari total <b>Deposit</b> on-chain (USDT) + bonus points pribadimu.</p>
+              <p className="text-xs text-slate-500">Leaderboard dihitung dari total <b>Deposit</b> on-chain (USDT) + bonus points pribadimu. Top 100 ditampilkan.</p>
             </section>
           )}
 
@@ -1105,16 +1169,16 @@ function SmallStat({ label, value }: { label: string; value: string | number }) 
   );
 }
 function tierLabel(points: number) {
-  if (points >= 3000) return "Platinum";
-  if (points >= 1500) return "Gold";
+  if (points >= 2000) return "Diamond";
+  if (points >= 1000) return "Gold";
   if (points >= 500) return "Silver";
   return "Bronze";
 }
 function nextTierTarget(points: number) {
   if (points < 500) return 500;
-  if (points < 1500) return 1500;
-  if (points < 3000) return 3000;
-  return 3000;
+  if (points < 1000) return 1000;
+  if (points < 2000) return 2000;
+  return 2000;
 }
 function TierProgress({ points }: { points: number }) {
   const target = nextTierTarget(points);
@@ -1129,6 +1193,69 @@ function TierProgress({ points }: { points: number }) {
         <div className="h-2 bg-emerald-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
       </div>
       <div className="mt-1 text-xs text-slate-500">{points.toLocaleString()} / {target.toLocaleString()} pts</div>
+    </div>
+  );
+}
+
+/* === RING / COMMUNITY === */
+function ProgressBar({ pct }: { pct: number }) {
+  return (
+    <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+      <div className="h-2 bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+    </div>
+  );
+}
+function Ring({ label, value, unit }: { label: string; value: number; unit?: string }) {
+  // static ring + angka
+  return (
+    <div className="relative h-28 w-28">
+      <div className="absolute inset-0 rounded-full border-[10px] border-emerald-200" />
+      <div className="absolute inset-0 rounded-full border-[10px] border-emerald-500 border-t-transparent animate-spin" />
+      <div className="absolute inset-4 rounded-full bg-white grid place-items-center">
+        <div className="text-center">
+          <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
+          <div className="text-sm font-semibold">{fmt(value, 2)}{unit ? "" : ""}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* === PROFILE RING CARD === */
+function AnimatedBalance({
+  label, value, sub, daily, monthly,
+}: {
+  label: string; value: number; sub?: string; daily: number; monthly: number;
+}) {
+  return (
+    <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
+      <div className="text-sm text-slate-500">{label}</div>
+      <div className="mt-4 flex items-center gap-5">
+        <div className="relative h-28 w-28">
+          <div className="absolute inset-0 rounded-full border-4 border-emerald-100" />
+          <div className="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
+          <div className="absolute inset-2 rounded-full bg-white grid place-items-center">
+            <div className="text-center">
+              <div className="text-[10px] uppercase tracking-wide text-slate-500">USDT</div>
+              <div className="text-sm font-semibold">{fmt(value, 2)}</div>
+            </div>
+          </div>
+        </div>
+        <div className="flex-1">
+          <div className="text-3xl font-semibold tracking-tight">{fmt(value, 2)} USDT</div>
+          {sub ? <div className="mt-1 text-xs text-slate-500">{sub}</div> : null}
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-xl border border-black/5 bg-white/60 p-3">
+              <div className="text-slate-500">Daily est.</div>
+              <div className="mt-1 font-semibold">{fmt(daily, 4)} USDT</div>
+            </div>
+            <div className="rounded-xl border border-black/5 bg-white/60 p-3">
+              <div className="text-slate-500">Monthly est.</div>
+              <div className="mt-1 font-semibold">{fmt(monthly, 4)} USDT</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1149,60 +1276,10 @@ function MissionCard({
         <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
           <div className="h-2 bg-emerald-500 rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, progress))}%` }} />
         </div>
-        <div className="mt-2 text-xs text-slate-500">{progress}%</div>
+        <div className="mt-2 text-xs text-slate-500">{Math.floor(progress)}%</div>
       </div>
       <div className="mt-3">
         {claimed ? <Button subtle disabled>Claimed</Button> : claimable ? <Button onClick={onClaim}>Claim</Button> : <Button subtle disabled>In Progress</Button>}
-      </div>
-    </div>
-  );
-}
-
-/* === Animated balance card === */
-function AnimatedBalance({
-  label, value, sub, daily, monthly,
-}: {
-  label: string;
-  value: number;
-  sub?: string;
-  daily: number;
-  monthly: number;
-}) {
-  return (
-    <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
-      <div className="text-sm text-slate-500">{label}</div>
-
-      <div className="mt-4 flex items-center gap-5">
-        {/* Ring berputar */}
-        <div className="relative h-28 w-28">
-          {/* ring dasar */}
-          <div className="absolute inset-0 rounded-full border-4 border-emerald-100" />
-          {/* ring animasi (spinner) */}
-          <div className="absolute inset-0 rounded-full border-4 border-emerald-500 border-t-transparent animate-spin" />
-          {/* isi tengah */}
-          <div className="absolute inset-2 rounded-full bg-white grid place-items-center">
-            <div className="text-center">
-              <div className="text-[10px] uppercase tracking-wide text-slate-500">USDT</div>
-              <div className="text-sm font-semibold">{fmt(value, 2)}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Teks kanan */}
-        <div className="flex-1">
-          <div className="text-3xl font-semibold tracking-tight">{fmt(value, 2)} USDT</div>
-          {sub ? <div className="mt-1 text-xs text-slate-500">{sub}</div> : null}
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-            <div className="rounded-xl border border-black/5 bg-white/60 p-3">
-              <div className="text-slate-500">Daily est.</div>
-              <div className="mt-1 font-semibold">{fmt(daily, 4)} USDT</div>
-            </div>
-            <div className="rounded-xl border border-black/5 bg-white/60 p-3">
-              <div className="text-slate-500">Monthly est.</div>
-              <div className="mt-1 font-semibold">{fmt(monthly, 4)} USDT</div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );
