@@ -1,27 +1,42 @@
-import { getMissionStatus } from "./missions";
+// lib/points.ts
+import { getMissionStatus, type MissionStatus } from "./missions";
 import { getUserActivity } from "./activity";
 
 export type PointsResult = {
-  points: number;
-  breakdown: { missions: number; deposits: number };
+  total: number;
+  missions: number;
+  deposits: number;
+  referrals: number;
 };
 
-/** Skor:
- *  +100 per mission completed (m1/m2)
- *  +1 point per USDT deposit kumulatif
+/**
+ * Hitung poin user:
+ * - Base: 120 (off-chain)
+ * - Missions: 50 poin per misi yang selesai (generic, supaya tidak hardcode)
+ * - Deposits: 1 poin per 1 USDT yang dideposit (dibulatkan ke bawah)
+ * - Referrals: 0 (placeholder – isi kalau sudah ada logic)
  */
 export async function calcPoints(addr: string, vault: string): Promise<PointsResult> {
-  const st = await getMissionStatus(address);
-  const missionPts = (ms.m1 ? 100 : 0) + (ms.m2 ? 100 : 0);
+  // Missions (dibaca dari localStorage via getMissionStatus)
+  const st: MissionStatus | null = await getMissionStatus(addr);
+  const missionsCompleted = st ? Object.values(st).filter(Boolean).length : 0;
+  const missionPts = missionsCompleted * 50;
 
+  // Activity (on-chain) → jumlahkan Deposit milik addr tersebut
   const acts = await getUserActivity(addr, vault);
-  const depositSum = acts
-    .filter((a) => a.type === "Deposit")
-    .reduce((s, a) => s + (a.amount || 0), 0);
+  const depositUSDT = acts
+    .filter((a) => a.type === "Deposit" && a.user?.toLowerCase() === addr.toLowerCase())
+    .reduce((sum, a) => sum + (Number(a.assets) || 0), 0);
 
-  const depositPts = Math.floor(depositSum);
+  const depositPts = Math.floor(depositUSDT);
+
+  const base = 120;
+  const referrals = 0; // TODO: isi jika sudah ada sistem referral
+
   return {
-    points: missionPts + depositPts,
-    breakdown: { missions: missionPts, deposits: depositPts },
+    total: base + missionPts + depositPts + referrals,
+    missions: missionPts,
+    deposits: depositPts,
+    referrals,
   };
 }
