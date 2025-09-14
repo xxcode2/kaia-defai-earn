@@ -1,88 +1,73 @@
 // lib/activity.ts
-"use client";
-
-import {
-  BrowserProvider,
-  JsonRpcProvider,
-  type Log,
-  Interface,
-  formatUnits,
-  id,
-} from "ethers";
+import { BrowserProvider, Contract, Interface, Log, formatUnits } from "ethers";
 import vaultJson from "@/lib/abi/DefaiVault.json";
 
-export type UserActivity = {
-  blockNumber: number;
+// ---- Types ----
+export type ChainActivity = {
   type: "Deposit" | "Withdraw";
   user: string;
-  assets: number;   // USDT (readable)
-  shares: number;   // shares (readable)
+  assets: number;
+  shares: number;
   txHash: string;
+  blockNumber: number;
 };
 
-// ===== Interface & topics (ethers v6) =====
+// ---- Interface & topics (compatible v6) ----
 const iface = new Interface((vaultJson as any).abi);
-// Event topic = keccak256("EventName(types)")
-export const topicDeposit: string = id("Deposit(address,uint256,uint256)");
-export const topicWithdraw: string = id("Withdraw(address,uint256,uint256)");
 
-/**
- * Ambil provider:
- * - Browser: BrowserProvider(window.ethereum)
- * - Server / fallback: JsonRpcProvider(NEXT_PUBLIC_RPC)
- */
-function getProvider() {
-  const rpc = process.env.NEXT_PUBLIC_RPC || "";
-  if (typeof window !== "undefined" && (window as any).ethereum) {
-    return new BrowserProvider((window as any).ethereum);
-  }
-  if (!rpc) {
-    throw new Error(
-      "No provider available. Set NEXT_PUBLIC_RPC or open in a browser with wallet."
-    );
-  }
-  return new JsonRpcProvider(rpc);
+function getTopic(name: string): string {
+  // EventFragment.topicHash (v6) atau fallback getEventTopic jika ada
+  const ev: any = (iface as any).getEvent?.(name);
+  return ev?.topicHash ?? (iface as any).getEventTopic?.(name);
 }
 
+const topicDeposit = getTopic("Deposit");
+const topicWithdraw = getTopic("Withdraw");
+
 /**
- * Ambil aktivitas Deposit/Withdraw dari vault
- * @param vaultAddr alamat vault
- * @param fromBlock block awal (default 0)
- * @param assetDecimals desimal aset (USDT biasanya 6)
- * @returns UserActivity[]
+ * Ambil activity on-chain (Deposit/Withdraw) dari contract VAULT.
+ * @param addr       (opsional) alamat user untuk filter di UI, TAPI di sini tetap ambil semua log
+ * @param vault      alamat kontrak vault
+ * @param fromBlock  block awal (default 0)
+ * @param assetDecimals desimal underlying (default 6 untuk USDT)
  */
 export async function getUserActivity(
-  vaultAddr: string,
+  addr: string,
+  vault: string,
   fromBlock = 0,
   assetDecimals = 6
-): Promise<UserActivity[]> {
-  const provider: any = getProvider();
+): Promise<ChainActivity[]> {
+  // Client-side only (dipanggil dari page/components)
+  const eth = (window as any).ethereum;
+  if (!eth) return [];
 
-  const logs: Log[] = await provider.getLogs({
-    address: vaultAddr,
-    fromBlock: fromBlock || 0,
+  const provider = new BrowserProvider(eth);
+
+  const logs: Log[] = await (provider as any).getLogs({
+    address: vault,
+    fromBlock,
     toBlock: "latest",
     topics: [[topicDeposit, topicWithdraw]],
   });
 
-  const rows: UserActivity[] = logs
+  const list: ChainActivity[] = logs
     .map((lg) => {
       try {
-        const parsed = iface.parseLog(lg);
+        const parsed: any = (iface as any).parseLog(lg);
         if (!parsed) return null as any;
 
-        const name = parsed.name as "Deposit" | "Withdraw";
+        const type = parsed.name as "Deposit" | "Withdraw";
         const user: string = parsed.args.user;
         const assets = Number(formatUnits(parsed.args.assets, assetDecimals));
         const shares = Number(formatUnits(parsed.args.shares, 18));
 
         return {
-          blockNumber: lg.blockNumber,
-          type: name,
+          type,
           user,
           assets,
           shares,
           txHash: lg.transactionHash,
+          blockNumber: lg.blockNumber,
         };
       } catch {
         return null as any;
@@ -91,5 +76,5 @@ export async function getUserActivity(
     .filter(Boolean)
     .sort((a, b) => b.blockNumber - a.blockNumber);
 
-  return rows;
+  return list;
 }
