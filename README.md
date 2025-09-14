@@ -1,3 +1,5 @@
+![Vault UI Preview](front-miniapp/public/brand/more.png)
+
 # MORE Earn — Kaia USDT
 
 MORE Earn is **Mini dApp** uilt for the **Kaia Stablecoin (USDT)**.  
