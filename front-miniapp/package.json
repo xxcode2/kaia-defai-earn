@@ -1,5 +1,5 @@
 {
-  "name": "defai-miniapp",
+  "name": "more-miniapp",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000",
@@ -17,11 +17,10 @@
     "react-dom": "18.3.1",
     "tailwindcss": "^4.1.13"
   },
-    "devDependencies": {
-    "devDependencies": {
+  "devDependencies": {
     "typescript": "^5.4.0",
     "@types/node": "^20.11.0",
-    "@tailwindcss/postcss": "^4.1.13",
-    "@types/react": "19.1.12"
+    "@types/react": "19.1.12",
+    "@tailwindcss/postcss": "^4.1.13"
   }
 }
