@@ -11,6 +11,7 @@ import {
 } from "ethers";
 import usdtJson from "@/lib/abi/USDT.json";
 import vaultJson from "@/lib/abi/DefaiVault.json";
+import Image from "next/image";
 
 /* ================== ENV ================== */
 const VAULT = process.env.NEXT_PUBLIC_VAULT!;
@@ -542,11 +543,18 @@ export default function Page() {
           <div className="mx-auto max-w-7xl md:max-w-none">
             <div className="flex items-center justify-between p-3 md:p-4">
               <div className="flex items-center gap-2">
-                <div className="h-7 w-7 md:h-8 md:w-8 rounded-xl bg-emerald-500" />
-                <div className="font-semibold tracking-tight">
-                  More <span className="text-emerald-600">Earn</span>
-                </div>
-              </div>
+  <Image
+    src="/brand/more.png"      // path relatif dari /public
+    alt="More Earn"
+    width={32}
+    height={32}
+    className="rounded-xl"     // kalau mau tetap rounded
+    priority
+  />
+           <div className="font-semibold tracking-tight">
+    More <span className="text-emerald-600">Earn</span>
+  </div>
+</div>
               <div className="md:hidden flex items-center gap-2">
                 {address ? (
                   <>
