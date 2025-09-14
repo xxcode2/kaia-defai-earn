@@ -32,7 +32,7 @@ export default function ActivityPage() {
     setLoading(true);
     try {
       const data = await getUserActivity(addr, VAULT);
-      setRows(data);
+      setRows(data.map(d => ({ ...d, block: d.blockNumber })));
       setLastUpdated(new Date().toLocaleTimeString());
     } finally {
       setLoading(false);
