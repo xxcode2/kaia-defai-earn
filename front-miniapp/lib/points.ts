@@ -11,7 +11,7 @@ export type PointsResult = {
  *  +1 point per USDT deposit kumulatif
  */
 export async function calcPoints(addr: string, vault: string): Promise<PointsResult> {
-  const ms = await getMissionStatus(addr, vault);
+  const st = await getMissionStatus(address);
   const missionPts = (ms.m1 ? 100 : 0) + (ms.m2 ? 100 : 0);
 
   const acts = await getUserActivity(addr, vault);
