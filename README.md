@@ -1,7 +1,7 @@
-# DeFAI Earn — Kaia USDT
+# MORE Earn — Kaia USDT
 
-DeFAI Earn adalah **Mini dApp** untuk ekosistem **Kaia Stablecoin (USDT)**.  
-Dibangun untuk **Kaia Wave Stablecoin Summer Hackathon**.
+MORE Earn is **Mini dApp** uilt for the **Kaia Stablecoin (USDT)**.  
+Developed as part of the **Kaia Wave Stablecoin Summer Hackathon**.
 
 ---
 
@@ -10,27 +10,28 @@ Dibangun untuk **Kaia Wave Stablecoin Summer Hackathon**.
 ### 0. Core
 - Connect wallet (Kairos 1001).
 - Deposit & Withdraw USDT (mock).
-- Tampilkan saldo wallet & Vault TVL.
+- Display wallet balance & Vault TVL.
+
 
 ### 1. Earn
-- Menampilkan APY (default 5%).
-- Proyeksi earnings harian & bulanan berdasarkan jumlah stake user.
+- Display APY (default: 5%).
+- Daily and monthly earnings projections based on user stake.
 
 ### 2. Missions
 - **Mission #1**: First deposit ≥ 100 USDT.
 - **Mission #2**: 3x deposit ≥ 10 USDT.
-- Status misi dihitung dari event `Deposit` & `MissionCompleted`.
+- Mission status is tracked via `Deposit` & `MissionCompleted` events.
 
 ### 3. Activity
-- Riwayat deposit & withdraw user.
-- Ditampilkan dari event on-chain + link ke **Kairos Scope** explorer.
+- User deposit & withdrawal history.
+- Pulled from on-chain events with links to **Kairos Scope** explorer.
 
 ### 4. Referral (coming soon)
 - Referral link `?ref=0x...`
 - Leaderboard top referrers.
 
 ### 5. Rewards (coming soon)
-- Off-chain points system untuk gamifikasi.
+- Off-chain points system for gamified engagement.
 
 ---
 
@@ -90,8 +91,4 @@ Copy code
 cd front-miniapp
 npm install
 npm run dev
-<<<<<<< HEAD
 Frontend default di http://localhost:3000.
-=======
-Frontend default di http://localhost:3000.
->>>>>>> d22a93d (✨ UI revamp: sidebar nav, improved Profile (copy/share, badges, points), remove top navbar)

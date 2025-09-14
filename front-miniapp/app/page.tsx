@@ -715,7 +715,7 @@ export default function Page() {
                       suffix={<Button subtle onClick={onMaxWithdraw}>Max</Button>}
                     />
                   </div>
-                  <div className="mt-1 text-xs text-slate-500">Mode: <b>USDT (assets)</b></div>
+          
                   <Button
                     className="mt-3"
                     size="lg"
@@ -732,16 +732,10 @@ export default function Page() {
               <section className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
                 <div className="text-lg font-medium">About Earn</div>
                 <ul className="mt-2 space-y-2 text-sm text-slate-700 list-disc pl-5">
-                  <li>Vault menerima <b>USDT</b>. Saat deposit, kamu menerima <b>shares</b> proporsional.</li>
-                  <li>Nilai shares meningkat seiring hasil strategi (auto-compounding). APY target: {APY_PCT}%.</li>
-                  <li>Withdraw input dalam <b>USDT</b> — sistem otomatis mengonversi ke shares yang dibakar.</li>
-                  <li>Semua transaksi tercatat on-chain & bisa dipantau di tab <b>Activity</b>.</li>
-                  {lockedPositions.length > 0 && (
-                    <li>
-                      <b>Locked (Demo):</b> kamu punya {lockedPositions.length} plan tersimpan lokal untuk keperluan
-                      presentasi (off-chain).
-                    </li>
-                  )}
+                  <li>The vault accepts <b>USDT</b>. Upon deposit, you receive <b>shares</b> proportional shares.</li>
+                  <li>Share value increases as the strategy yields results (auto-compounding). APY target: {APY_PCT}%.</li>
+                  <li>Withdrawals are input in <b>USDT</b> — the system automatically converts the amount into shares, which are then burned.</li>
+                  <li>All transactions are recorded on-chain and can be tracked via the tab. <b>Activity</b>.</li>
                 </ul>
               </section>
             </>
@@ -851,9 +845,7 @@ export default function Page() {
                 </div>
               </div>
 
-              <p className="text-xs text-slate-500">
-                * Data dari event <b>Deposit/Withdraw</b> Vault mulai block {FROM_BLOCK || 0}.
-              </p>
+            
             </section>
           )}
 
@@ -888,7 +880,7 @@ export default function Page() {
                     <Badge className={clsx("justify-center", totalPoints >= 1000 ? "" : "opacity-50")}>Gold</Badge>
                     <Badge className={clsx("justify-center", totalPoints >= 2000 ? "" : "opacity-50")}>Diamond</Badge>
                   </div>
-                  <div className="mt-2 text-xs text-slate-500">Badges akan terbuka otomatis saat total points melampaui ambang tier.</div>
+                  <div className="mt-2 text-xs text-slate-500">Badges will automatically unlock once your total points surpass the tier threshold.</div>
                 </div>
               </div>
 
@@ -958,12 +950,12 @@ export default function Page() {
                   </ol>
                 )}
               </div>
-              <p className="text-xs text-slate-500">Leaderboard dihitung dari total <b>Deposit</b> on-chain (USDT) + bonus points pribadimu. Top 100 ditampilkan.</p>
+              <p className="text-xs text-slate-500">Leaderboard is calculated from the total <b>Deposit</b> on-chain (USDT) + Your personal bonus points. The top 100 are displayed.</p>
             </section>
           )}
 
           <footer className="py-6 text-center text-xs text-slate-500">
-            Built for Kaia Wave Stablecoin Summer Hackathon
+            By More Finance - For Kaia Wave Stablecoin Summer Hackathon
           </footer>
         </main>
       </div>
@@ -986,9 +978,9 @@ function Hero() {
     <section className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">Grow your USDT the easy way</h1>
+          <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">LET YOUR USDT DO THE HEAVY LIFTING.</h1>
         </div>
-        <Pill tone="emerald">Auto-compounding</Pill>
+       <Pill tone="emerald"></Pill> 
       </div>
     </section>
   );

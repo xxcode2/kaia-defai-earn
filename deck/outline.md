@@ -1,11 +1,11 @@
-# DeFAI Earn — Kaia USDT (Pitch Outline)
+# MORE Earn — Kaia USDT (Pitch Outline)
 
 ## 1. Problem
 - Stablecoin capital on Kaia lacks simple, transparent, mission-driven “trade-and-earn” flows inside LINE Mini Apps.
 - New users need a lightweight on-ramp to *earn* with stablecoins without complex DeFi UX.
 
 ## 2. Solution
-- **DeFAI Earn**: a minimal USDT vault on Kaia with clear APY target, deposit/withdraw, missions, referral growth.
+- **MORE Earn**: a minimal USDT vault on Kaia with clear APY target, deposit/withdraw, missions, referral growth.
 - **LINE Mini-App** frontend: low-friction entry, social-native missions and referrals.
 - **Analytics**: TVL, users, deposits, withdrawals to prove traction.
 
@@ -34,13 +34,13 @@
 - Additional stablecoin pools & cross-ecosystem quests.
 
 ## 7. Team
-- (Add names and roles)
+- Axell - Smart Contract, Frontend, Product.
 
 ## 8. Ask
 - Partnerships, grants for audits, and distribution through LINE mini-apps.
 
 ## Links
-- GitHub: <repo-url>
+- GitHub: (https://github.com/xxcode2/kaia-defai-earn)
 - Demo: <demo-url>
 - Docs: `/README.md`
 - Analytics: `/analytics`
