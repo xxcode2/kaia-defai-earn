@@ -23,7 +23,7 @@ const SCOPE = (process.env.NEXT_PUBLIC_SCOPE || "https://kairos.scope.kaia.io").
 
 /* ================== CONST ================== */
 const SHARE_DECIMALS = 18;
-const COMMUNITY_GOAL = 1_000_000; // USDT target goal
+const COMMUNITY_GOAL = 1_000_000; // USDT goal
 
 // ABI event signatures (untuk membaca aktivitas dari log)
 const EV_DEPOSIT = "event Deposit(address indexed user,uint256 assets,uint256 shares)";
@@ -78,18 +78,18 @@ function short(addr?: string, left = 6, right = 4) {
 
 /* ========= Missions persist ========= */
 const DEFAULT_MISSIONS: Mission[] = [
-  { id: "m1",  title: "Connect Wallet",                 pts: 50,  progress: 0, claimable: false, claimed: false },
-  { id: "m2",  title: "First Deposit ≥ 50 USDT",        pts: 150, progress: 0, claimable: false, claimed: false },
-  { id: "m3",  title: "Try Withdraw",                   pts: 100, progress: 0, claimable: false, claimed: false },
-  { id: "m4",  title: "Reach 500 USDT (personal)",      pts: 120, progress: 0, claimable: false, claimed: false },
-  { id: "m5",  title: "Reach 1,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
-  { id: "m6",  title: "Make 3 Deposits",                pts: 150, progress: 0, claimable: false, claimed: false },
-  { id: "m7",  title: "Stay Staked for 7 days",         pts: 150, progress: 0, claimable: false, claimed: false },
-  { id: "m8",  title: "Use Locked (Demo) once",         pts: 80,  progress: 0, claimable: false, claimed: false },
-  { id: "m9",  title: "Top 100 Leaderboard (any time)", pts: 250, progress: 0, claimable: false, claimed: false },
-  { id: "m10", title: "Share Referral Link",            pts: 100, progress: 0, claimable: false, claimed: false },
-  { id: "m11",  title: "Reach 10,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
-  { id: "m11",  title: "Reach 15,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
+  { id: "m1",  title: "Connect Wallet",                  pts: 50,  progress: 0, claimable: false, claimed: false },
+  { id: "m2",  title: "First Deposit ≥ 50 USDT",         pts: 150, progress: 0, claimable: false, claimed: false },
+  { id: "m3",  title: "Try Withdraw",                    pts: 100, progress: 0, claimable: false, claimed: false },
+  { id: "m4",  title: "Reach 500 USDT (personal)",       pts: 120, progress: 0, claimable: false, claimed: false },
+  { id: "m5",  title: "Reach 1,000 USDT (personal)",     pts: 200, progress: 0, claimable: false, claimed: false },
+  { id: "m6",  title: "Make 3 Deposits",                 pts: 150, progress: 0, claimable: false, claimed: false },
+  { id: "m7",  title: "Stay Staked for 7 days",          pts: 150, progress: 0, claimable: false, claimed: false },
+  { id: "m8",  title: "Use Locked (Demo) once",          pts: 80,  progress: 0, claimable: false, claimed: false },
+  { id: "m9",  title: "Top 100 Leaderboard (any time)",  pts: 250, progress: 0, claimable: false, claimed: false },
+  { id: "m10", title: "Share Referral Link",             pts: 100, progress: 0, claimable: false, claimed: false },
+  { id: "m11", title: "Reach 10,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
+  { id: "m12", title: "Reach 15,000 USDT (personal)",    pts: 200, progress: 0, claimable: false, claimed: false },
 ];
 
 const MISS_KEY = (addr: string) => `moreearn.missions:${addr?.toLowerCase() || "guest"}`;
@@ -101,10 +101,8 @@ function loadMissions(addr: string): Mission[] {
   } catch {}
   return DEFAULT_MISSIONS;
 }
-
 function mergeMissions(saved: Mission[] | null): Mission[] {
   if (!saved || !Array.isArray(saved)) return DEFAULT_MISSIONS;
-  // gabungkan berdasarkan id: data lama dipertahankan, misi baru di-inject
   const byId = new Map(saved.map(m => [m.id, m]));
   return DEFAULT_MISSIONS.map(def => {
     const old = byId.get(def.id);
@@ -296,7 +294,7 @@ export default function Page() {
   }, [address]);
 
   useEffect(() => {
-    // m4 & m5: personal TVL thresholds
+    // m4 & m5 & m11 & m12: personal TVL thresholds
     setMissions((prev) =>
       prev.map((m) => {
         if (m.id === "m4") {
@@ -306,6 +304,14 @@ export default function Page() {
         if (m.id === "m5") {
           const done = userAssetsEq >= 1000;
           return { ...m, progress: done ? 100 : Math.min(100, (userAssetsEq / 1000) * 100), claimable: done && !m.claimed };
+        }
+        if (m.id === "m11") {
+          const done = userAssetsEq >= 10_000;
+          return { ...m, progress: done ? 100 : Math.min(100, (userAssetsEq / 10_000) * 100), claimable: done && !m.claimed };
+        }
+        if (m.id === "m12") {
+          const done = userAssetsEq >= 15_000;
+          return { ...m, progress: done ? 100 : Math.min(100, (userAssetsEq / 15_000) * 100), claimable: done && !m.claimed };
         }
         return m;
       })
@@ -392,16 +398,20 @@ export default function Page() {
       alert("Masukkan jumlah deposit");
       return;
     }
-    toast("Locked deposit (Demo) recorded ✅");
+    toast(`Locked deposit (Demo) recorded ✅ — ${plan}`);
     setLockedPositions((arr) => [...arr, { plan: plan, amount: amt, start: Date.now() }]);
     // missions
     setMissions((prev) =>
       prev.map((m) => (m.id === "m8" ? { ...m, progress: 100, claimable: !m.claimed } : m))
     );
-    // Optional: hitung juga sebagai deposit count untuk m6
+    // count juga deposit demo sebagai progres m6
     depositCountRef.current += 1;
     setMissions((prev) =>
-      prev.map((m) => (m.id === "m6" ? { ...m, progress: Math.min(100, (depositCountRef.current / 3) * 100), claimable: depositCountRef.current >= 3 && !m.claimed } : m))
+      prev.map((m) =>
+        m.id === "m6"
+          ? { ...m, progress: Math.min(100, (depositCountRef.current / 3) * 100), claimable: depositCountRef.current >= 3 && !m.claimed }
+          : m
+      )
     );
   }
 
@@ -489,10 +499,22 @@ export default function Page() {
       setActLoading(true);
       const { provider } = await getProviderAndSigner();
       const vaultIface = new Contract(VAULT, vaultJson.abi).interface as any;
-const depTopic = (vaultIface.getEvent(EV_DEPOSIT) as any)?.topicHash as string;
-const wdTopic  = (vaultIface.getEvent(EV_WITHDRAW) as any)?.topicHash as string;
-if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
 
+      // Dapatkan topic hash secara aman
+      const depFrag = vaultIface.getEvent?.("Deposit");
+      const wdFrag  = vaultIface.getEvent?.("Withdraw");
+
+      const depTopic: string =
+        (depFrag?.topicHash as string) ??
+        (vaultIface.getEventTopic ? vaultIface.getEventTopic("Deposit(address,uint256,uint256)") : undefined);
+
+      const wdTopic: string =
+        (wdFrag?.topicHash as string) ??
+        (vaultIface.getEventTopic ? vaultIface.getEventTopic("Withdraw(address,uint256,uint256)") : undefined);
+
+      if (!depTopic || !wdTopic) {
+        throw new Error("Invalid ABI: missing Deposit/Withdraw event signatures");
+      }
 
       const logs: Log[] = await (provider as any).getLogs({
         address: VAULT,
@@ -545,18 +567,18 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
           <div className="mx-auto max-w-7xl md:max-w-none">
             <div className="flex items-center justify-between p-3 md:p-4">
               <div className="flex items-center gap-2">
-  <Image
-    src="/brand/more.png"      // path relatif dari /public
-    alt="More Earn"
-    width={32}
-    height={32}
-    className="rounded-xl"     // kalau mau tetap rounded
-    priority
-  />
-           <div className="font-semibold tracking-tight">
-    More <span className="text-emerald-600">Earn</span>
-  </div>
-</div>
+                <Image
+                  src="/brand/more.png"
+                  alt="More Earn"
+                  width={32}
+                  height={32}
+                  className="rounded-xl"
+                  priority
+                />
+                <div className="font-semibold tracking-tight">
+                  More <span className="text-emerald-600">Earn</span>
+                </div>
+              </div>
               <div className="md:hidden flex items-center gap-2">
                 {address ? (
                   <>
@@ -700,8 +722,8 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
 
                   {earnMode === "locked" && (
                     <p className="mt-2 text-xs text-amber-700">
-                      * Locked mode adalah <b>demo/simulasi off-chain</b> untuk keperluan presentasi. Dana tetap disimpan
-                      di vault flexible, namun kamu mendapatkan progress mission & catatan plan.
+                      * Locked mode adalah <b>demo/simulasi off-chain</b> untuk keperluan presentasi. Dana tetap masuk
+                      vault flexible, namun kamu mendapatkan progress mission & catatan plan.
                     </p>
                   )}
                 </div>
@@ -717,7 +739,6 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
                       suffix={<Button subtle onClick={onMaxWithdraw}>Max</Button>}
                     />
                   </div>
-          
                   <Button
                     className="mt-3"
                     size="lg"
@@ -734,10 +755,10 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
               <section className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
                 <div className="text-lg font-medium">About Earn</div>
                 <ul className="mt-2 space-y-2 text-sm text-slate-700 list-disc pl-5">
-                  <li>The vault accepts <b>USDT</b>. Upon deposit, you receive <b>shares</b> proportional shares.</li>
+                  <li>The vault accepts <b>USDT</b>. Upon deposit, you receive <b>shares</b> proportional to your deposit.</li>
                   <li>Share value increases as the strategy yields results (auto-compounding). APY target: {APY_PCT}%.</li>
-                  <li>Withdrawals are input in <b>USDT</b> — the system automatically converts the amount into shares, which are then burned.</li>
-                  <li>All transactions are recorded on-chain and can be tracked via the tab. <b>Activity</b>.</li>
+                  <li>Withdrawals are input in <b>USDT</b> — the system converts to the equivalent shares and burns them.</li>
+                  <li>All transactions are recorded on-chain and can be tracked via the <b>Activity</b> tab.</li>
                 </ul>
               </section>
             </>
@@ -846,8 +867,6 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
                   </div>
                 </div>
               </div>
-
-            
             </section>
           )}
 
@@ -857,7 +876,13 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
               <SectionTitle>Profile</SectionTitle>
 
               {/* Your Vault Balance */}
-              <AnimatedBalance label="Your Vault Balance" value={+fmt(userAssetsEq, 2).replace(/,/g, "")} sub={`APY target ${APY_PCT}%`} daily={daily} monthly={monthly} />
+              <AnimatedBalance
+                label="Your Vault Balance"
+                value={userAssetsEq}
+                sub={`APY target ${APY_PCT}%`}
+                daily={daily}
+                monthly={monthly}
+              />
 
               {/* Points & Badges */}
               <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
@@ -882,7 +907,7 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
                     <Badge className={clsx("justify-center", totalPoints >= 1000 ? "" : "opacity-50")}>Gold</Badge>
                     <Badge className={clsx("justify-center", totalPoints >= 2000 ? "" : "opacity-50")}>Diamond</Badge>
                   </div>
-                  <div className="mt-2 text-xs text-slate-500">Badges will automatically unlock once your total points surpass the tier threshold.</div>
+                  <div className="mt-2 text-xs text-slate-500">Badges unlock automatically when your total points pass each tier threshold.</div>
                 </div>
               </div>
 
@@ -952,12 +977,12 @@ if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
                   </ol>
                 )}
               </div>
-              <p className="text-xs text-slate-500">Leaderboard is calculated from the total <b>Deposit</b> on-chain (USDT) + Your personal bonus points. The top 100 are displayed.</p>
+              <p className="text-xs text-slate-500">Leaderboard dihitung dari total <b>Deposit</b> on-chain (USDT) + bonus points pribadi. Hanya Top 100 ditampilkan.</p>
             </section>
           )}
 
           <footer className="py-6 text-center text-xs text-slate-500">
-            By More Finance - For Kaia Wave Stablecoin Summer Hackathon
+            By More Finance — Kaia Wave Stablecoin Summer Hackathon
           </footer>
         </main>
       </div>
@@ -982,7 +1007,7 @@ function Hero() {
         <div>
           <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">LET YOUR USDT DO THE HEAVY LIFTING.</h1>
         </div>
-       <Pill tone="emerald"></Pill> 
+        <Pill tone="emerald">Auto-compounding</Pill>
       </div>
     </section>
   );
@@ -1046,14 +1071,6 @@ function StatCard({ label, value }: { label: string; value?: string | number }) 
       ) : (
         <div className="mt-1 text-xl font-semibold tracking-tight">{value}</div>
       )}
-    </div>
-  );
-}
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
-      <div className="text-lg font-medium">{title}</div>
-      <div className="mt-3">{children}</div>
     </div>
   );
 }
@@ -1208,7 +1225,7 @@ function ProgressBar({ pct }: { pct: number }) {
   );
 }
 function Ring({ label, value, unit }: { label: string; value: number; unit?: string }) {
-  // static ring + angka
+  // spinner ring + angka tengah
   return (
     <div className="relative h-28 w-28">
       <div className="absolute inset-0 rounded-full border-[10px] border-emerald-200" />
@@ -1216,7 +1233,9 @@ function Ring({ label, value, unit }: { label: string; value: number; unit?: str
       <div className="absolute inset-4 rounded-full bg-white grid place-items-center">
         <div className="text-center">
           <div className="text-[10px] uppercase tracking-wide text-slate-500">{label}</div>
-          <div className="text-sm font-semibold">{fmt(value, 2)}{unit ? "" : ""}</div>
+          <div className="text-sm font-semibold">
+            {fmt(value, 2)} {unit ?? ""}
+          </div>
         </div>
       </div>
     </div>
