@@ -28,7 +28,7 @@ export default function MissionsPage() {
     if (loading) return;
     setLoading(true);
     try {
-      const res = await getMissionStatus(addr, VAULT);
+      const res = await getMissionStatus(addr);
       setStatus(res);
     } finally {
       setLoading(false);
