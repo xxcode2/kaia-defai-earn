@@ -722,8 +722,8 @@ export default function Page() {
 
                   {earnMode === "locked" && (
                     <p className="mt-2 text-xs text-amber-700">
-                      * Locked mode adalah <b>demo/simulasi off-chain</b> untuk keperluan presentasi. Dana tetap masuk
-                      vault flexible, namun kamu mendapatkan progress mission & catatan plan.
+                      * Locked mode is <b>demo/simulasi off-chain</b> For presentation purposes. 
+                      Funds remain in the flexible vault, but you receive mission progress and plan notes.
                     </p>
                   )}
                 </div>
