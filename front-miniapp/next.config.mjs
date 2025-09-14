@@ -1,8 +1,3 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  // JANGAN pakai: output: 'export'
-  // JANGAN set distDir kustom
-};
-
+const nextConfig = { reactStrictMode: true };
 export default nextConfig;
