@@ -1,44 +1,57 @@
-import { Interface, Log, JsonRpcProvider } from "ethers";
-import vaultJson from "../lib/abi/DefaiVault.json";
+// lib/activity.ts
+import { Interface, Log, Result, formatUnits } from "ethers";
+import vaultJson from "@/lib/abi/DefaiVault.json";
 
-const KAIA_RPC = "https://public-en-kairos.node.kaia.io";
 const iface = new Interface((vaultJson as any).abi);
 
-const topicDeposit = iface.getEvent("Deposit").topicHash;
-const topicWithdraw = iface.getEvent("Withdraw").topicHash;
+// SAFE: langsung ambil topic via getEventTopic (tidak nullable)
+export const topicDeposit: string = iface.getEventTopic("Deposit");
+export const topicWithdraw: string = iface.getEventTopic("Withdraw");
 
 export type UserActivity = {
   type: "Deposit" | "Withdraw";
-  amount: number;
-  tx: string;
+  user: string;
+  assets: number;   // in USDT (readable)
+  shares: number;   // in shares (readable)
+  txHash: string;
   blockNumber: number;
 };
 
-export async function getUserActivity(address: string, vaultAddr: string): Promise<UserActivity[]> {
-  const rpc = new JsonRpcProvider(KAIA_RPC);
-  const fromBlock = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || 0);
+const SHARE_DECIMALS = 18;
 
-  const logs: Log[] = await rpc.getLogs({
-    address: vaultAddr.toLowerCase(),
-    topics: [[topicDeposit, topicWithdraw]],
-    fromBlock,
-    toBlock: "latest",
-  });
+/**
+ * Parse a single vault log safely.
+ */
+export function parseVaultLog(
+  lg: Log,
+  assetDecimals = 6
+): UserActivity | null {
+  try {
+    const parsed = iface.parseLog(lg) as { name: string; args: Result };
+    if (!parsed) return null;
 
-  const acts: UserActivity[] = [];
-  for (const l of logs) {
-    const ev = iface.parseLog(l)!;
-    const who = (ev.args[0] as string).toLowerCase();
-    if (who !== address.toLowerCase()) continue;
+    const type = parsed.name as "Deposit" | "Withdraw";
+    const user: string = parsed.args.user as string;
+    const assets = Number(formatUnits(parsed.args.assets as bigint, assetDecimals));
+    const shares = Number(formatUnits(parsed.args.shares as bigint, SHARE_DECIMALS));
 
-    acts.push({
-      type: ev.name as "Deposit" | "Withdraw",
-      amount: Number(ev.args[1]) / 1e6,
-      tx: l.transactionHash,
-      blockNumber: Number(l.blockNumber),
-    });
+    return {
+      type,
+      user,
+      assets,
+      shares,
+      txHash: lg.transactionHash!,
+      blockNumber: lg.blockNumber!,
+    };
+  } catch {
+    return null;
   }
+}
 
-  // newest first
-  return acts.sort((a, b) => b.blockNumber - a.blockNumber);
+/**
+ * Utility untuk memfilter logs (gabungan deposit/withdraw topic).
+ * Pakai ini saat memanggil provider.getLogs({ topics: [[topicDeposit, topicWithdraw]], ... })
+ */
+export function combinedTopics(): (string | string[])[] {
+  return [[topicDeposit, topicWithdraw]];
 }
