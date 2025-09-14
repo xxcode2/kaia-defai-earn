@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { getUserActivity } from "../../lib/activity";
+import { getUserActivity, UserActivity } from "@/lib/activity";
 
 type Row = { type: string; amount: number; tx: string; block: number };
 
