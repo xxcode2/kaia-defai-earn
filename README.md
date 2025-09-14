@@ -1,4 +1,4 @@
-![Vault UI Preview](front-miniapp/public/brand/more.png)
+![Vault UI Preview](front-miniapp/public/brand/more1.png)
 
 # MORE Earn — Kaia USDT
 
