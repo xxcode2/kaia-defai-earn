@@ -1,27 +1,23 @@
 // lib/missions.ts
 import { id } from "ethers";
 
-/**
- * TOPICS — aman untuk ethers v6 (tanpa Interface.getEvent).
- * Kalau kontrak kamu memang emit MissionCompleted(address,uint256),
- * topik di bawah sudah benar. Kalau tidak ada di kontrak, ini tetap
- * harmless karena kita tidak memanggil getLogs dari sini.
- */
+/** ===== Event topics (ethers v6 friendly) ===== */
 export const topicDeposit  = id("Deposit(address,uint256,uint256)");
 export const topicWithdraw = id("Withdraw(address,uint256,uint256)");
 export const topicMission  = id("MissionCompleted(address,uint256)");
 
-/* ========= Types ========= */
+/** ===== Types ===== */
 export type Mission = {
   id: string;
   title: string;
   pts: number;
-  progress: number;  // 0..100
+  progress: number;   // 0..100
   claimable: boolean;
   claimed: boolean;
 };
 
-/* ========= Defaults ========= */
+export type MissionStatus = Record<string, boolean>; // true = selesai (claimed atau 100%)
+
 export const DEFAULT_MISSIONS: Mission[] = [
   { id: "m1",  title: "Connect Wallet",                  pts: 50,  progress: 0, claimable: false, claimed: false },
   { id: "m2",  title: "First Deposit ≥ 50 USDT",         pts: 150, progress: 0, claimable: false, claimed: false },
@@ -35,7 +31,7 @@ export const DEFAULT_MISSIONS: Mission[] = [
   { id: "m10", title: "Share Referral Link",             pts: 100, progress: 0, claimable: false, claimed: false },
 ];
 
-/* ========= Persist helpers ========= */
+/** ===== Persist helpers ===== */
 const MISS_KEY = (addr: string) =>
   `moreearn.missions:${addr?.toLowerCase() || "guest"}`;
 
@@ -62,6 +58,22 @@ export function saveMissions(address: string, data: Mission[]) {
   try {
     localStorage.setItem(MISS_KEY(address), JSON.stringify(data));
   } catch {
-    // ignore
+    // ignore quota/SSG
   }
+}
+
+/** ===== API yang diminta file lain ===== */
+// Status boolean per mission id (claimed OR progress >= 100 dianggap selesai)
+export async function getMissionStatus(address: string): Promise<MissionStatus> {
+  // dibuat async supaya kompatibel dengan import existing (kalau mereka await)
+  const ms = loadMissions(address);
+  const st: MissionStatus = {};
+  for (const m of ms) st[m.id] = !!(m.claimed || m.progress >= 100);
+  return st;
+}
+
+// Total poin yang sudah diklaim (berguna untuk points.ts)
+export function getClaimedMissionPoints(address: string): number {
+  const ms = loadMissions(address);
+  return ms.filter((m) => m.claimed).reduce((s, m) => s + m.pts, 0);
 }
