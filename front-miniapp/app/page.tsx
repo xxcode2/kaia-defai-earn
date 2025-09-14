@@ -488,9 +488,11 @@ export default function Page() {
     try {
       setActLoading(true);
       const { provider } = await getProviderAndSigner();
-      const vaultIface = new Contract(VAULT, vaultJson.abi).interface;
-      const depTopic = vaultIface.getEvent(EV_DEPOSIT).topicHash;
-      const wdTopic = vaultIface.getEvent(EV_WITHDRAW).topicHash;
+      const vaultIface = new Contract(VAULT, vaultJson.abi).interface as any;
+const depTopic = (vaultIface.getEvent(EV_DEPOSIT) as any)?.topicHash as string;
+const wdTopic  = (vaultIface.getEvent(EV_WITHDRAW) as any)?.topicHash as string;
+if (!depTopic || !wdTopic) throw new Error("Invalid ABI");
+
 
       const logs: Log[] = await (provider as any).getLogs({
         address: VAULT,
