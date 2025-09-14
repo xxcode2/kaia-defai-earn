@@ -3,7 +3,7 @@ import { BrowserProvider, Contract, Interface, Log, formatUnits } from "ethers";
 import vaultJson from "@/lib/abi/DefaiVault.json";
 
 // ---- Types ----
-export type ChainActivity = {
+export type UserActivity = {
   type: "Deposit" | "Withdraw";
   user: string;
   assets: number;
@@ -36,7 +36,7 @@ export async function getUserActivity(
   vault: string,
   fromBlock = 0,
   assetDecimals = 6
-): Promise<ChainActivity[]> {
+): Promise<UserActivity[]> {
   // Client-side only (dipanggil dari page/components)
   const eth = (window as any).ethereum;
   if (!eth) return [];
@@ -50,7 +50,7 @@ export async function getUserActivity(
     topics: [[topicDeposit, topicWithdraw]],
   });
 
-  const list: ChainActivity[] = logs
+  const list: UserActivity[] = logs
     .map((lg) => {
       try {
         const parsed: any = (iface as any).parseLog(lg);
