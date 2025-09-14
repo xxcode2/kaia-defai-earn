@@ -1,89 +1,71 @@
-// front-miniapp/app/api/analytics/route.ts
+// app/api/analytics/route.ts
 import { NextResponse } from "next/server";
-import { JsonRpcProvider, Interface, Log } from "ethers";
+import { JsonRpcProvider, Contract, Log, formatUnits } from "ethers";
 import vaultJson from "@/lib/abi/DefaiVault.json";
 
-const RPC = process.env.NEXT_PUBLIC_RPC || "https://public-en-kairos.node.kaia.io";
-const VAULT = process.env.NEXT_PUBLIC_VAULT!;
+const VAULT = process.env.NEXT_PUBLIC_VAULT as string;
 const FROM_BLOCK = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || "0");
+const RPC_URL =
+  process.env.RPC_URL ||
+  process.env.NEXT_PUBLIC_RPC ||
+  "https://public-en-kairos.node.kaia.io";
 
-// in-memory cache (per server instance)
-let last: { t: number; data: any } | null = null;
-const CACHE_MS = 60_000 * 5; // 5 minutes
+// (optional) kalau USDT decimals-nya beda, ganti di .env dan baca dari token
+const ASSET_DECIMALS = Number(process.env.NEXT_PUBLIC_USDT_DECIMALS || "6");
 
 export async function GET() {
   try {
-    if (last && Date.now() - last.t < CACHE_MS) {
-      return NextResponse.json(last.data, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" } });
+    if (!VAULT) {
+      return NextResponse.json({ error: "ENV NEXT_PUBLIC_VAULT belum di-set" }, { status: 500 });
     }
 
-    const provider = new JsonRpcProvider(RPC);
-    const iface = new Interface((vaultJson as any).abi);
+    const provider = new JsonRpcProvider(RPC_URL);
 
-    // Topics
-    const depositTopic = iface.getEvent("Deposit")?.topicHash;
-    const withdrawTopic = iface.getEvent("Withdraw")?.topicHash;
+    // Ambil topic event dari ABI
+    const iface = new Contract(VAULT, vaultJson.abi).interface;
 
-    // Pull logs for Deposit & Withdraw
-    const logs: Log[] = await provider.getLogs({
-      address: VAULT.toLowerCase(),
+    const depEvt = iface.getEvent("Deposit(address indexed user,uint256 assets,uint256 shares)");
+    const wdEvt  = iface.getEvent("Withdraw(address indexed user,uint256 assets,uint256 shares)");
+
+    const depositTopic = depEvt?.topicHash;
+    const withdrawTopic = wdEvt?.topicHash;
+
+    if (!depositTopic || !withdrawTopic) {
+      return NextResponse.json(
+        { error: "Event topics tidak ditemukan dari ABI (cek ABI/kontrak)" },
+        { status: 500 }
+      );
+    }
+
+    // Ambil semua log Deposit/Withdraw
+    const logs: Log[] = await (provider as any).getLogs({
+      address: VAULT,
       fromBlock: FROM_BLOCK,
       toBlock: "latest",
-      topics: [[depositTopic, withdrawTopic]],
+      topics: [[depositTopic, withdrawTopic]], // <- sekarang dijamin string, bukan undefined
     });
 
-    // Aggregate
-    const users = new Set<string>();
-    let totalDeposits = 0n;
-    let totalWithdraws = 0n;
-
+    // Agregasi sederhana: estimasi TVL berbasis net deposit-withdraw (asset units)
+    let tvl = 0;
     for (const lg of logs) {
-      let ev;
       try {
-        ev = iface.parseLog(lg);
+        const p = iface.parseLog(lg);
+        if (!p) continue;
+        const assets = Number(formatUnits(p.args.assets, ASSET_DECIMALS));
+        if (p.name === "Deposit") tvl += assets;
+        if (p.name === "Withdraw") tvl -= assets;
       } catch {
-        continue;
-      }
-      const name = ev?.name;
-      if (!name) continue;
-
-      if (name === "Deposit") {
-        const user = (ev.args[0] as string).toLowerCase();
-        const assets = BigInt(ev.args[1].toString());
-        users.add(user);
-        totalDeposits += assets;
-      } else if (name === "Withdraw") {
-        const user = (ev.args[0] as string).toLowerCase();
-        const assets = BigInt(ev.args[1].toString());
-        users.add(user);
-        totalWithdraws += assets;
+        // skip log yang tidak bisa diparse
       }
     }
 
-    // Try to get TVL via totalAssets(); if not available, approximate
-    let tvl: number | null = null;
-    try {
-      const vault = new (await import("ethers")).Contract(VAULT, (vaultJson as any).abi, provider);
-      if (vault.interface.getFunction("totalAssets()")) {
-        const raw = await vault.totalAssets();
-        tvl = Number((await import("ethers")).formatUnits(raw, 6));
-      }
-    } catch {}
-
-    const data = {
-      tvl,                                    // may be null if function not in ABI
-      users: users.size,
-      totalDeposits: Number((await import("ethers")).formatUnits(totalDeposits, 6)),
-      totalWithdraws: Number((await import("ethers")).formatUnits(totalWithdraws, 6)),
-      updatedAt: new Date().toISOString(),
+    return NextResponse.json({
+      tvl,
+      logsCount: logs.length,
       fromBlock: FROM_BLOCK,
-    };
-
-    last = { t: Date.now(), data };
-    return NextResponse.json(data, {
-      headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=60" },
+      vault: VAULT,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "analytics-failed" }, { status: 500 });
+    return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
   }
 }
