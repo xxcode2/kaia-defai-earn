@@ -102,12 +102,17 @@ export default function ProfilePage() {
 
       <div className="bg-white rounded-2xl p-4 shadow-sm border mt-4">
         <div className="text-sm font-medium">Your Points</div>
-        <div className="text-3xl font-semibold mt-1">
-          {pts ? pts.points.toLocaleString() : "—"}
-        </div>
-        <div className="text-xs text-gray-500 mt-1">
-          Missions: <b>{pts?.breakdown.missions ?? 0}</b> · Deposits:{" "}
-          <b>{pts?.breakdown.deposits ?? 0}</b>
+<div className="text-3xl font-semibold mt-1">
+  {pts ? pts.total.toLocaleString() : "—"}
+</div>
+<div className="text-xs text-gray-500 mt-1">
+  Missions: <b>{pts?.missions ?? 0}</b> · Deposits: <b>{pts?.deposits ?? 0}</b> · Referrals: <b>{pts?.referrals ?? 0}</b>
+</div>
+
+{/* badge & progress */}
+<Pill tone="emerald">{tierLabel(pts?.total ?? 0)} Tier</Pill>
+<TierProgress points={pts?.total ?? 0} />
+
         </div>
       </div>
 
