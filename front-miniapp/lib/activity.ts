@@ -2,7 +2,6 @@
 import { BrowserProvider, Contract, Interface, Log, formatUnits } from "ethers";
 import vaultJson from "@/lib/abi/DefaiVault.json";
 
-// ---- Types ----
 export type UserActivity = {
   type: "Deposit" | "Withdraw";
   user: string;
@@ -12,63 +11,36 @@ export type UserActivity = {
   blockNumber: number;
 };
 
-// ---- Interface & topics (compatible v6) ----
 const iface = new Interface((vaultJson as any).abi);
 
-function getTopic(name: string): string {
-  // EventFragment.topicHash (v6) atau fallback getEventTopic jika ada
-  const ev: any = (iface as any).getEvent?.(name);
-  return ev?.topicHash ?? (iface as any).getEventTopic?.(name);
-}
-
-const topicDeposit = getTopic("Deposit");
-const topicWithdraw = getTopic("Withdraw");
-
-/**
- * Ambil activity on-chain (Deposit/Withdraw) dari contract VAULT.
- * @param addr       (opsional) alamat user untuk filter di UI, TAPI di sini tetap ambil semua log
- * @param vault      alamat kontrak vault
- * @param fromBlock  block awal (default 0)
- * @param assetDecimals desimal underlying (default 6 untuk USDT)
- */
-export async function getUserActivity(
-  addr: string,
+export async function getVaultActivity(
   vault: string,
   fromBlock = 0,
   assetDecimals = 6
 ): Promise<UserActivity[]> {
-  // Client-side only (dipanggil dari page/components)
-  const eth = (window as any).ethereum;
-  if (!eth) return [];
+  if (!(globalThis as any).ethereum) return [];
 
-  const provider = new BrowserProvider(eth);
+  const provider = new BrowserProvider((globalThis as any).ethereum);
+  const depTopic = (iface.getEvent("Deposit") as any)?.topicHash as string;
+  const wdTopic  = (iface.getEvent("Withdraw") as any)?.topicHash as string;
+  if (!depTopic || !wdTopic) return [];
 
   const logs: Log[] = await (provider as any).getLogs({
     address: vault,
     fromBlock,
     toBlock: "latest",
-    topics: [[topicDeposit, topicWithdraw]],
+    topics: [[depTopic, wdTopic]],
   });
 
   const list: UserActivity[] = logs
     .map((lg) => {
       try {
         const parsed: any = (iface as any).parseLog(lg);
-        if (!parsed) return null as any;
-
         const type = parsed.name as "Deposit" | "Withdraw";
         const user: string = parsed.args.user;
         const assets = Number(formatUnits(parsed.args.assets, assetDecimals));
         const shares = Number(formatUnits(parsed.args.shares, 18));
-
-        return {
-          type,
-          user,
-          assets,
-          shares,
-          txHash: lg.transactionHash,
-          blockNumber: lg.blockNumber,
-        };
+        return { type, user, assets, shares, txHash: lg.transactionHash, blockNumber: lg.blockNumber };
       } catch {
         return null as any;
       }
@@ -77,4 +49,15 @@ export async function getUserActivity(
     .sort((a, b) => b.blockNumber - a.blockNumber);
 
   return list;
+}
+
+export async function getUserActivity(
+  addr: string,
+  vault: string,
+  fromBlock = 0,
+  assetDecimals = 6
+): Promise<UserActivity[]> {
+  const all = await getVaultActivity(vault, fromBlock, assetDecimals);
+  const lower = addr?.toLowerCase?.();
+  return lower ? all.filter(a => a.user?.toLowerCase() === lower) : all;
 }
