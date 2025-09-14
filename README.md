@@ -5,7 +5,7 @@ Developed as part of the **Kaia Wave Stablecoin Summer Hackathon**.
 
 ---
 
-## ✨ Fitur Utama
+## ✨ Key Features
 
 ### 0. Core
 - Connect wallet (Kairos 1001).
