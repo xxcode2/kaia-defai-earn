@@ -1,71 +1,98 @@
-// app/api/analytics/route.ts
 import { NextResponse } from "next/server";
-import { JsonRpcProvider, Contract, Log, formatUnits } from "ethers";
+import { Contract, Interface, JsonRpcProvider, formatUnits } from "ethers";
 import vaultJson from "@/lib/abi/DefaiVault.json";
+import usdtJson from "@/lib/abi/USDT.json";
 
-const VAULT = process.env.NEXT_PUBLIC_VAULT as string;
-const FROM_BLOCK = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || "0");
-const RPC_URL =
-  process.env.RPC_URL ||
-  process.env.NEXT_PUBLIC_RPC ||
-  "https://public-en-kairos.node.kaia.io";
 
-// (optional) kalau USDT decimals-nya beda, ganti di .env dan baca dari token
-const ASSET_DECIMALS = Number(process.env.NEXT_PUBLIC_USDT_DECIMALS || "6");
+ * ENV yang dipakai (set di Vercel › Settings › Environment Variables):
+ * - NEXT_PUBLIC_RPC         : https://kairos.scope.kaia.io
+ * - NEXT_PUBLIC_VAULT       : 0x328f7dEB7a47EE05D2013395096613F8929d7015
+ * - NEXT_PUBLIC_USDT        : 0xB00ce96eE443CAa3d902f6B062C6A69310A88086
+ * - NEXT_PUBLIC_VAULT_FROM_BLOCK : 196058363
+
+const RPC         = process.env.NEXT_PUBLIC_RPC!;
+const VAULT       = process.env.NEXT_PUBLIC_VAULT!;
+const USDT        = process.env.NEXT_PUBLIC_USDT!;
+const FROM_BLOCK  = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || "0");
+
+// ethers v6
+const provider = new JsonRpcProvider(RPC);
+const vaultIface = new Interface((vaultJson as any).abi);
+
+// Helper aman untuk dapatkan topic
+function getTopic(name: string): string {
+  const frag = vaultIface.getEvent(name);
+  // @ts-expect-error: getEventTopic menerima fragment/string di v6
+  return vaultIface.getEventTopic(frag ?? name);
+}
+
+const TOPIC_DEPOSIT  = getTopic("Deposit");
+const TOPIC_WITHDRAW = getTopic("Withdraw");
 
 export async function GET() {
   try {
-    if (!VAULT) {
-      return NextResponse.json({ error: "ENV NEXT_PUBLIC_VAULT belum di-set" }, { status: 500 });
-    }
-
-    const provider = new JsonRpcProvider(RPC_URL);
-
-    // Ambil topic event dari ABI
-    const iface = new Contract(VAULT, vaultJson.abi).interface;
-
-    const depEvt = iface.getEvent("Deposit(address indexed user,uint256 assets,uint256 shares)");
-    const wdEvt  = iface.getEvent("Withdraw(address indexed user,uint256 assets,uint256 shares)");
-
-    const depositTopic = depEvt?.topicHash;
-    const withdrawTopic = wdEvt?.topicHash;
-
-    if (!depositTopic || !withdrawTopic) {
-      return NextResponse.json(
-        { error: "Event topics tidak ditemukan dari ABI (cek ABI/kontrak)" },
-        { status: 500 }
-      );
-    }
-
-    // Ambil semua log Deposit/Withdraw
-    const logs: Log[] = await (provider as any).getLogs({
-      address: VAULT,
-      fromBlock: FROM_BLOCK,
-      toBlock: "latest",
-      topics: [[depositTopic, withdrawTopic]], // <- sekarang dijamin string, bukan undefined
-    });
-
-    // Agregasi sederhana: estimasi TVL berbasis net deposit-withdraw (asset units)
-    let tvl = 0;
-    for (const lg of logs) {
+    // TVL: coba baca totalAssets() → fallback ke saldo USDT vault
+    let tvl: number | null = null;
+    try {
+      const vault = new Contract(VAULT, (vaultJson as any).abi, provider);
+      const assets: bigint = await vault.totalAssets();
+      // Ambil decimals USDT untuk format
+      const usdt = new Contract(USDT, (usdtJson as any).abi, provider);
+      const dec: number = Number(await usdt.decimals());
+      tvl = Number(formatUnits(assets, dec));
+    } catch {
       try {
-        const p = iface.parseLog(lg);
-        if (!p) continue;
-        const assets = Number(formatUnits(p.args.assets, ASSET_DECIMALS));
-        if (p.name === "Deposit") tvl += assets;
-        if (p.name === "Withdraw") tvl -= assets;
+        const usdt = new Contract(USDT, (usdtJson as any).abi, provider);
+        const dec: number = Number(await usdt.decimals());
+        const bal: bigint = await usdt.balanceOf(VAULT);
+        tvl = Number(formatUnits(bal, dec));
       } catch {
-        // skip log yang tidak bisa diparse
+        tvl = null;
       }
     }
 
-    return NextResponse.json({
+    // Ambil semua log Deposit & Withdraw sejak FROM_BLOCK
+    const [depLogs, wdLogs] = await Promise.all([
+      provider.getLogs({ address: VAULT, fromBlock: FROM_BLOCK, toBlock: "latest", topics: [TOPIC_DEPOSIT] }),
+      provider.getLogs({ address: VAULT, fromBlock: FROM_BLOCK, toBlock: "latest", topics: [TOPIC_WITHDRAW] }),
+    ]);
+
+    // Hitung metrik sederhana
+    const usersSet = new Set<string>();
+    let totalDeposits = 0;
+    let totalWithdraws = 0;
+
+    for (const l of depLogs) {
+      try {
+        const p = vaultIface.parseLog(l);
+        const user = (p?.args?.user as string) || "";
+        if (user) usersSet.add(user.toLowerCase());
+        totalDeposits += 1;
+      } catch {}
+    }
+    for (const l of wdLogs) {
+      try {
+        const p = vaultIface.parseLog(l);
+        const user = (p?.args?.user as string) || "";
+        if (user) usersSet.add(user.toLowerCase());
+        totalWithdraws += 1;
+      } catch {}
+    }
+
+    const payload = {
       tvl,
-      logsCount: logs.length,
+      users: usersSet.size,
+      totalDeposits,
+      totalWithdraws,
+      updatedAt: new Date().toISOString(),
       fromBlock: FROM_BLOCK,
-      vault: VAULT,
-    });
+    };
+
+    return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Unknown error" }, { status: 500 });
+    return NextResponse.json(
+      { error: e?.message || "failed" },
+      { status: 500, headers: { "Cache-Control": "no-store" } }
+    );
   }
 }
