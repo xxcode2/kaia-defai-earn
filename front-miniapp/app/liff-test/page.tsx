@@ -1,36 +1,41 @@
+// app/liff-test/page.tsx
 "use client";
 
 import ConnectWalletButton from "@/components/ConnectWalletButton";
-import { useLiffCtx } from "@/components/LiffProvider";
-import { useDappCtx } from "@/components/DappPortalProvider";
-import { useState } from "react";
+import { useDappPortal } from "@/components/DappPortalProvider";
+import { useEffect, useState } from "react";
 
-export default function Page() {
-  const { ready, profile } = useLiffCtx();
-  const { supported, sdk } = useDappCtx();
-  const [address, setAddress] = useState<string>("");
+export default function LiffTestPage() {
+  const { sdk } = useDappPortal();
+  const [supported, setSupported] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!sdk) return;
+    try {
+      setSupported(!!sdk.isSupportedBrowser?.());
+    } catch {
+      setSupported(null);
+    }
+  }, [sdk]);
 
   return (
     <div className="max-w-xl mx-auto p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">LIFF + DappPortal Test</h1>
+      <h1 className="text-xl font-semibold">LIFF + Dapp Portal Test</h1>
 
       <div className="text-sm">
-        <div>LIFF ready: <b>{ready ? "yes" : "no"}</b></div>
-        <div>LINE user: <b>{profile?.displayName || "—"}</b></div>
+        SDK: {sdk ? "initialized" : "not ready"}
+        {supported !== null && (
+          <span className="ml-2">
+            · Browser: {supported ? "supported" : "unsupported"}
+          </span>
+        )}
       </div>
 
-      <div className="text-sm">
-        <div>DappPortal SDK: <b>{sdk ? "loaded" : "not loaded"}</b></div>
-        <div>Browser supported: <b>{
-          supported === null ? "unknown" : supported ? "yes" : "no"
-        }</b></div>
-      </div>
+      <ConnectWalletButton />
 
-      <ConnectWalletButton onConnected={setAddress} />
-
-      <div className="text-sm">
-        Address: <b>{address || "—"}</b>
-      </div>
+      <p className="text-xs text-gray-500">
+        Wallet tidak akan auto-connect. Klik tombol di atas untuk connect.
+      </p>
     </div>
   );
 }

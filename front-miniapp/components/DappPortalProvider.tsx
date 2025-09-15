@@ -20,7 +20,7 @@ export default function DappPortalProvider({ children }: { children: React.React
   useEffect(() => {
     let mounted = true;
     (async () => {
-      await initDappPortal();
+      await initDappPortal(); // init sekali, no auto-connect wallet
       if (!mounted) return;
       setSdk(getDappPortal());
     })();

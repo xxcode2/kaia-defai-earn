@@ -1,20 +1,22 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
-import { LiffProvider } from "@/components/LiffProvider";
-import { DappPortalProvider } from "@/components/DappPortalProvider";
+import LiffProvider from "@/components/LiffProvider"; // kalau LiffProvider kamu default export
+import DappPortalProvider from "@/components/DappPortalProvider"; // default import
 
 export const metadata: Metadata = {
   title: "MORE Earn",
-  description: "Simple USDT yield on Kaia",
+  description: "More Earn – Kaia",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen bg-white">
+      <body>
         <LiffProvider>
-          <DappPortalProvider>{children}</DappPortalProvider>
+          <DappPortalProvider>
+            {children}
+          </DappPortalProvider>
         </LiffProvider>
       </body>
     </html>

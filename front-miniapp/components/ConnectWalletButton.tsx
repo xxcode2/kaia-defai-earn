@@ -1,72 +1,69 @@
+// components/ConnectWalletButton.tsx
 "use client";
 
-import { useState } from "react";
-import { useDappCtx } from "./DappPortalProvider";
-import { BrowserProvider } from "ethers";
+import { useEffect, useState } from "react";
+import { useDappPortal } from "@/components/DappPortalProvider";
 
-export default function ConnectWalletButton({
-  onConnected,
-  className,
-}: {
-  onConnected?: (address: string) => void;
-  className?: string;
-}) {
-  const { sdk, supported } = useDappCtx();
-  const [loading, setLoading] = useState(false);
-  const [addr, setAddr] = useState<string>("");
+export default function ConnectWalletButton() {
+  const { sdk } = useDappPortal();
+  const [address, setAddress] = useState<string>("");
 
-  async function connect() {
-    setLoading(true);
+  useEffect(() => {
+    // cek akun yang sudah terhubung (jika ada) untuk menampilkan state awal
+    (async () => {
+      try {
+        const provider = sdk?.getWalletProvider?.();
+        if (!provider) return;
+        const accs: string[] = await provider.request({ method: "eth_accounts" });
+        setAddress(accs?.[0] ?? "");
+        provider.on?.("accountsChanged", (accs: string[]) => setAddress(accs?.[0] ?? ""));
+      } catch {
+        // silent
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sdk]);
+
+  async function onConnect() {
     try {
-      let eip1193: any = null;
-
-      // Prioritas 1: DappPortal SDK (jika tersedia)
-      if (sdk?.getWalletProvider) {
-        if (supported === false) {
-          try {
-            await sdk.showUnsupportedBrowserGuide();
-          } catch {}
-          setLoading(false);
-          return;
-        }
-        eip1193 = sdk.getWalletProvider();
-      }
-
-      // Fallback: window.ethereum (mis. MetaMask) saat di web biasa
-      if (!eip1193 && typeof window !== "undefined") {
-        // @ts-ignore
-        eip1193 = (window as any).ethereum || null;
-      }
-
-      if (!eip1193) {
-        alert("No wallet provider found.");
-        setLoading(false);
+      const provider = sdk?.getWalletProvider?.();
+      if (!provider) {
+        alert("SDK belum siap. Pastikan DappPortalProvider terpasang & clientId terisi.");
         return;
       }
-
-      const provider = new BrowserProvider(eip1193);
-      const signer = await provider.getSigner();
-      // Pastikan minta akun kalau belum
-      if (eip1193.request) {
-        await eip1193.request({ method: "eth_requestAccounts" });
-      }
-      const me = await signer.getAddress();
-      setAddr(me);
-      onConnected?.(me);
+      const accs: string[] = await provider.request({ method: "eth_requestAccounts" });
+      setAddress(accs?.[0] ?? "");
     } catch (e: any) {
       alert(e?.message || "Connect failed");
-    } finally {
-      setLoading(false);
     }
   }
 
-  return (
+  async function onDisconnect() {
+    try {
+      const provider = sdk?.getWalletProvider?.();
+      await provider?.request?.({
+        method: "wallet_revokePermissions",
+        params: [{ eth_accounts: {} }],
+      });
+    } catch {
+      // beberapa wallet tidak support
+    }
+    setAddress("");
+  }
+
+  return address ? (
     <button
-      onClick={connect}
-      disabled={loading}
-      className={className || "px-4 py-2 rounded-xl bg-emerald-600 text-white"}
+      onClick={onDisconnect}
+      className="px-3 py-2 rounded-md bg-slate-900 text-white text-sm"
     >
-      {addr ? `Connected: ${addr.slice(0, 6)}…${addr.slice(-4)}` : loading ? "Connecting…" : "Connect Wallet"}
+      {address.slice(0, 6)}…{address.slice(-4)} · Disconnect
+    </button>
+  ) : (
+    <button
+      onClick={onConnect}
+      className="px-3 py-2 rounded-md bg-emerald-600 text-white text-sm"
+    >
+      Connect Wallet
     </button>
   );
 }
