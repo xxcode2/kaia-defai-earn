@@ -1,81 +1,89 @@
 // lib/dappPortal.ts
+// Pastikan kamu sudah install: npm i @linenext/dapp-portal-sdk
+// SDK ini default export, bukan named export.
 import DappPortalSDK from "@linenext/dapp-portal-sdk";
-
-type InitConfig = {
-  clientId?: string;             // ex: process.env.NEXT_PUBLIC_KAIA_CLIENT_ID
-  chainId?: string | number;     // "8217" (Kaia mainnet) / "1001" (Kairos testnet)
-};
 
 let sdkInstance: any | null = null;
 
 /**
- * Membuat / mengembalikan instance SDK (singleton).
- * Tidak memicu koneksi wallet. Hanya inisialisasi.
+ * Inisialisasi SDK — panggil sekali saat app start (mis. di provider).
+ * Tidak melakukan auto-connect wallet. Hanya init sesuai guideline.
  */
-function ensureSDK(cfg?: InitConfig) {
+export async function initDappPortal() {
   if (sdkInstance) return sdkInstance;
 
-  const clientId =
-    cfg?.clientId ?? process.env.NEXT_PUBLIC_KAIA_CLIENT_ID ?? "";
-  const chainId =
-    String(cfg?.chainId ?? process.env.NEXT_PUBLIC_CHAIN_ID ?? "1001");
+  const clientId = process.env.NEXT_PUBLIC_DAPP_CLIENT_ID;
+  const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || "1001"; // Kairos default
 
   if (!clientId) {
-    // Jangan lempar error fatal saat dev; cukup warning agar halaman tetap render.
-    console.warn(
-      "[DappPortal] Missing clientId. Set NEXT_PUBLIC_KAIA_CLIENT_ID in env."
-    );
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[DappPortal] Missing NEXT_PUBLIC_DAPP_CLIENT_ID");
+    }
+    return null;
   }
 
-  sdkInstance = new DappPortalSDK({
-    clientId,
-    chainId,
-  });
+  // Optional: cek browser support
+  try {
+    const tmp = new DappPortalSDK({ clientId, chainId });
+    if (!tmp.isSupportedBrowser()) {
+      // Jangan lempar error — serahkan ke UI untuk menampilkan guide bila perlu
+      console.warn("[DappPortal] Unsupported browser. Call showUnsupportedBrowserGuide() in UI if needed.");
+    }
+    // finalize instance
+    sdkInstance = tmp;
+    return sdkInstance;
+  } catch (e) {
+    console.error("[DappPortal] init error:", e);
+    return null;
+  }
+}
 
+/**
+ * Getter untuk instance SDK yang sudah di-init.
+ * Ini yang kamu butuhkan supaya import { getDappPortal } tidak error.
+ */
+export function getDappPortal() {
   return sdkInstance;
 }
 
 /**
- * Panggil ini sekali saat app start (misal di provider useEffect).
- * - Cek kompatibilitas browser (optional).
- * - TIDAK melakukan connect wallet otomatis.
- */
-export async function initDappPortal(cfg?: InitConfig) {
-  const sdk = ensureSDK(cfg);
-
-  try {
-    // Ikuti guideline: tampilkan panduan jika browser tidak didukung.
-    if (typeof sdk.isSupportedBrowser === "function" && !sdk.isSupportedBrowser()) {
-      await sdk.showUnsupportedBrowserGuide?.();
-    }
-  } catch (e) {
-    // Tidak memblokir UI
-    console.warn("[DappPortal] Browser support check failed:", e);
-  }
-
-  return sdk;
-}
-
-/**
- * Ambil WalletProvider (EIP-1193 compatible) saat dibutuhkan,
- * misalnya ketika user klik tombol "Connect".
+ * Provider EIP-1193 untuk wallet — dipakai saat user klik “Connect”.
+ * Pastikan initDappPortal() sudah dipanggil sebelumnya.
  */
 export function getWalletProvider() {
-  const sdk = ensureSDK();
-  return sdk.getWalletProvider?.();
+  return sdkInstance?.getWalletProvider?.() ?? null;
 }
 
 /**
- * Ambil PaymentProvider (jika akan pakai fitur pembayaran).
+ * Payment provider (kalau kamu pakai fitur payment SDK).
  */
 export function getPaymentProvider() {
-  const sdk = ensureSDK();
-  return sdk.getPaymentProvider?.();
+  return sdkInstance?.getPaymentProvider?.() ?? null;
 }
 
 /**
- * Utility untuk reset (biasanya tidak perlu, tapi berguna untuk testing HMR).
+ * Helper opsional bila mau dipakai di UI.
  */
-export function __resetDappPortalForTests() {
-  sdkInstance = null;
+export function isSupportedBrowser(): boolean {
+  try {
+    // kalau belum init, buat instance sementara hanya untuk cek
+    const clientId = process.env.NEXT_PUBLIC_DAPP_CLIENT_ID || "placeholder";
+    const chainId = process.env.NEXT_PUBLIC_CHAIN_ID || "1001";
+    const inst = sdkInstance ?? new DappPortalSDK({ clientId, chainId });
+    return !!inst.isSupportedBrowser();
+  } catch {
+    return false;
+  }
+}
+
+export async function showUnsupportedBrowserGuide() {
+  try {
+    // butuh instance; kalau belum ada, inisialisasi sementara
+    if (!sdkInstance) {
+      await initDappPortal();
+    }
+    await sdkInstance?.showUnsupportedBrowserGuide?.();
+  } catch (e) {
+    console.warn("[DappPortal] showUnsupportedBrowserGuide failed:", e);
+  }
 }

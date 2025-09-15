@@ -659,7 +659,7 @@ export default function Page() {
                   priority
                 />
                 <div className="font-semibold tracking-tight">
-                  More <span className="text-emerald-600">Earn</span>
+                  MORE <span className="text-emerald-600">Earn</span>
                 </div>
               </div>
               <div className="md:hidden flex items-center gap-2">
@@ -1064,7 +1064,7 @@ export default function Page() {
           )}
 
           <footer className="py-6 text-center text-xs text-slate-500">
-            By More Finance — Kaia Wave Stablecoin Summer Hackathon
+            By MORE — Kaia Wave Stablecoin Summer Hackathon 2025
           </footer>
         </main>
       </div>
