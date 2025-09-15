@@ -1,165 +1,95 @@
-<div align="center">
-  <img src="front-miniapp/public/brand/more1.png" alt="Vault UI Preview" width="300"/>
-</div>
+<div align="center"><img src="front-miniapp/public/brand/more1.png" alt="Vault UI Preview" width="300"/></div>
+# MORE Earn — Kaia USDT
 
-# MORE Earn — Mini dApp on Kaia
-
-**MORE Earn** is a DeFi mini dApp built for the **Kaia** ecosystem.  
-Its mission is simple: provide users with an easy way to **deposit USDT** and earn yield via an auto-compounding vault — enriched with **missions, leaderboard, analytics, and referral features** for gamification and adoption.
+MORE Earn is **Mini dApp** uilt for the **Kaia Stablecoin (USDT)**.  
+Developed as part of the **Kaia Wave Stablecoin Summer Hackathon**.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-### 🏦 Core DeFi
-- **Flexible Deposit** → deposit USDT into the Vault and receive proportional shares.
-- **Withdraw** → redeem USDT anytime, converted from user shares.
-- **TVL Tracker** → displays vault total assets in real-time.
-- **Auto-compounding** → steady target APY (default 5%).
+### 0. Core
+- Connect wallet (Kairos 1001).
+- Deposit & Withdraw USDT (mock).
+- Display wallet balance & Vault TVL.
 
-### 🔒 Locked Deposit (Demo Mode)
-- Simulated lock plans: 30, 60, 90 days with higher APY (7%–10%).
-- Locked positions stored off-chain for demo & missions.
-- Progresses the **“Use Locked (Demo) once”** mission.
 
-### 🕹 Missions & Gamification
-- On-chain & off-chain missions (connect wallet, first deposit, withdraw, referral, etc.).
-- Persisted in `localStorage` per user address.
-- Reward points accumulate into **tiers** and **badges**.
+### 1. Earn
+- Display APY (default: 5%).
+- Daily and monthly earnings projections based on user stake.
 
-### 🏆 Leaderboard
-- Top 100 depositors ranked by total USDT deposits (on-chain).
-- Personal mission/referral points included in total.
+### 2. Missions
+- **Mission #1**: First deposit ≥ 100 USDT.
+- **Mission #2**: 3x deposit ≥ 10 USDT.
+- Mission status is tracked via `Deposit` & `MissionCompleted` events.
 
-### 📊 Analytics
-- Shows:
-  - **Current TVL**
-  - **Unique users**
-  - **Total deposits & withdrawals**
-- **TVL snapshot** (roadmap: store daily snapshots for sparklines).
+### 3. Activity
+- User deposit & withdrawal history.
+- Pulled from on-chain events with links to **Kairos Scope** explorer.
 
-### 👤 Profile
-- User’s vault balance + estimated daily & monthly yield.
-- Tier badges (Bronze, Silver, Gold, Diamond).
-- Referral link generator → copy & share to earn referral points.
+### 4. Referral (coming soon)
+- Referral link `?ref=0x...`
+- Leaderboard top referrers.
+
+### 5. Rewards (coming soon)
+- Off-chain points system for gamified engagement.
 
 ---
 
-## 🛠 Tech Stack
+## 🏗️ Tech Stack
 
-- **Framework:** [Next.js 14 (App Router)](https://nextjs.org/) + React Server Components
-- **Language:** TypeScript
-- **UI:** TailwindCSS, shadcn/ui components
-- **Blockchain:**  
-  - [Ethers v6](https://docs.ethers.org/) for on-chain interactions  
-  - Kaia Kairos testnet / Kaia mainnet
-- **Wallet Integration:**  
-  - LINE **Dapp Portal SDK** + **LIFF** (LINE Mini App)  
-  - EIP-1193 `walletProvider.request(...)`
-- **State & Data:** React hooks + localStorage
-- **Analytics & Logs:** On-chain log parser (`getLogs`, Deposit/Withdraw)
+- **Smart Contracts**: Solidity + Hardhat + OpenZeppelin
+- **Frontend**: Next.js 14 + TailwindCSS
+- **Wallet**: MetaMask / OKX Wallet (Kairos 1001)
+- **Analytics**: Dune Dashboard (planned)
+- **Docs/Deck**: Pitch deck (DocSend link)
 
 ---
 
-## 🚀 Getting Started
+## 📂 Repository Structure
 
-### 1. Clone repo & install dependencies
+kaia-defai-earn/
+├── contracts/ # Smart contracts (DefaiVault, MockUSDT, dll)
+├── scripts/ # Deploy & test scripts (Hardhat)
+├── front-miniapp/ # Next.js Mini dApp frontend
+├── deck/ # Pitch deck (PDF/PPTX, DocSend link)
+├── dune/ # Dune Analytics query / README link
+├── .env.example # Contoh konfigurasi env
+├── hardhat.config.ts # Hardhat config
+├── package.json # Dependencies
+└── README.md # Dokumentasi
+
+yaml
+Copy code
+
+---
+
+## ⚙️ Setup & Deploy
+
+### 1. Clone repo
 ```bash
 git clone https://github.com/xxcode2/kaia-defai-earn.git
-cd kaia-defai-earn/front-miniapp
+cd kaia-defai-earn
+2. Install dependencies
+bash
+Copy code
 npm install
-```
+3. Deploy contracts (Kairos testnet)
+Update .env:
 
-2. Configure .env.local
+bash
+Copy code
+PRIVATE_KEY=0xyourprivatekey
+USDT=0xMockUSDTAddress
+Deploy vault:
 
-Create a .env.local file in the project root:
-
-NEXT_PUBLIC_CHAIN_ID=1001
-NEXT_PUBLIC_RPC_HTTP=https://public-en-kairos.node.kaia.io
-
-NEXT_PUBLIC_VAULT=0xYourVaultAddress
-NEXT_PUBLIC_USDT=0xYourUSDTAddress
-NEXT_PUBLIC_VAULT_FROM_BLOCK=0
-
-NEXT_PUBLIC_APY=5
-NEXT_PUBLIC_SCOPE=https://kairos.scope.kaia.io
-
-# LINE Mini dApp
-NEXT_PUBLIC_LIFF_ID=your-liff-id
-NEXT_PUBLIC_DAPP_PORTAL_CLIENT_ID=your-client-id
-
-3. Run development server
+bash
+Copy code
+npm run deploy:vault --network kairos
+4. Run frontend
+bash
+Copy code
+cd front-miniapp
+npm install
 npm run dev
-
-
-Open http://localhost:3000
-
-4. Build for production
-npm run build
-npm run start
-
-### 📌 Roadmap
-## Q1 2025
-
-✅ Flexible deposit & withdraw
-
-✅ Missions system (localStorage)
-
-✅ Leaderboard (top 100 on-chain)
-
-✅ Profile tiers & badges
-
-✅ Basic analytics (TVL, users, deposits/withdraws)
-
-## Q2 2025
-
-⏳ On-chain locked deposits (if vault contract supports depositLocked)
-
-⏳ Daily TVL snapshot & sparkline charts
-
-⏳ Share referral link via LINE share target picker
-
-⏳ Enhanced analytics dashboard (APY trend, user growth)
-
-## Q3 2025
-
-⏳ Multi-vault support (multiple stablecoins/tokens)
-
-⏳ Mobile-first optimization for LINE Mini App
-
-⏳ Off-chain missions with backend verification
-
-⏳ Public API for leaderboard & analytics
-
-## Q4 2025
-
-⏳ Governance features (vote on vault parameters)
-
-⏳ NFT badges for high tiers
-
-⏳ Expansion from Kaia testnet → Kaia mainnet
-
-### 📷 UI Preview
-
-Earn Tab: deposit (flexible & locked), withdraw
-
-Missions Tab: gamified tasks for engagement
-
-Activity Tab: on-chain deposit/withdraw logs
-
-Profile Tab: balance, tier, referral
-
-Leaderboard Tab: top depositor ranking
-
-Analytics Tab: TVL, users, deposit/withdraw summary
-
-### 🤝 Contributing
-
-Pull Requests and Issues are welcome!
-Standard workflow:
-
-Fork → branch → PR
-
-Provide a clear description of your feature/fix
-
-Follow TypeScript + Tailwind coding style
+Frontend default di http://localhost:3000.
