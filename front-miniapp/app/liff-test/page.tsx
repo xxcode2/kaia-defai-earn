@@ -1,41 +1,27 @@
-// app/liff-test/page.tsx
-"use client";
+'use client';
 
-import ConnectWalletButton from "@/components/ConnectWalletButton";
-import { useDappPortal } from "@/components/DappPortalProvider";
-import { useEffect, useState } from "react";
+import ConnectWalletButton from '@/components/ConnectWalletButton';
+import { useDappPortal } from '@/components/DappPortalProvider';
+import { useEffect, useState } from 'react';
 
 export default function LiffTestPage() {
-  const { sdk } = useDappPortal();
-  const [supported, setSupported] = useState<boolean | null>(null);
+  const { address, chainId } = useDappPortal();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!sdk) return;
-    try {
-      setSupported(!!sdk.isSupportedBrowser?.());
-    } catch {
-      setSupported(null);
-    }
-  }, [sdk]);
+    setReady(true);
+  }, []);
 
   return (
-    <div className="max-w-xl mx-auto p-6 space-y-4">
-      <h1 className="text-xl font-semibold">LIFF + Dapp Portal Test</h1>
-
-      <div className="text-sm">
-        SDK: {sdk ? "initialized" : "not ready"}
-        {supported !== null && (
-          <span className="ml-2">
-            · Browser: {supported ? "supported" : "unsupported"}
-          </span>
-        )}
-      </div>
-
+    <main className="p-4 space-y-4">
+      <h1 className="text-xl font-semibold">LIFF Test</h1>
       <ConnectWalletButton />
 
-      <p className="text-xs text-gray-500">
-        Wallet tidak akan auto-connect. Klik tombol di atas untuk connect.
-      </p>
-    </div>
+      <div className="text-sm text-gray-600">
+        <div>Status: {ready ? 'Client Ready' : 'Loading…'}</div>
+        <div>Address: {address ?? '—'}</div>
+        <div>Chain ID: {chainId ?? '—'}</div>
+      </div>
+    </main>
   );
 }

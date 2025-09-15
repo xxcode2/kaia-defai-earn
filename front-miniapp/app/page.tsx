@@ -28,7 +28,7 @@ const LIFF_ID = (process.env.NEXT_PUBLIC_LIFF_ID || "").trim();
 const SHARE_DECIMALS = 18;
 const COMMUNITY_GOAL = 1_000_000; // USDT goal
 
-// ABI event signatures (untuk membaca aktivitas dari log)
+// ABI event signatures (untuk membaca aktivitas dari log) — tidak dipakai langsung
 const EV_DEPOSIT = "event Deposit(address indexed user,uint256 assets,uint256 shares)";
 const EV_WITHDRAW = "event Withdraw(address indexed user,uint256 assets,uint256 shares)";
 
@@ -74,8 +74,7 @@ function getReadProvider() {
 }
 
 /** Balikkan signer HANYA jika sudah terkoneksi (ada account). Tidak memicu connect pop-up. */
-async function getSignerIfConnected():
-  Promise<{ provider: BrowserProvider; signerAddress: string; signer: any } | null> {
+async function getSignerIfConnected(): Promise<{ provider: BrowserProvider; signerAddress: string; signer: any } | null> {
   if (!hasWindowEth()) return null;
   const provider = new BrowserProvider((window as any).ethereum);
   // cek akun yang sudah approved
@@ -271,8 +270,6 @@ export default function Page() {
           // tetap bisa jalan di browser biasa, LIFF hanya di-inisialisasi
         }
         await liff.init({ liffId: LIFF_ID });
-        // tidak ada aksi lanjutan di sini; hanya ready untuk nanti jika dibutuhkan
-        // console.log("LIFF ready:", liff.isLoggedIn());
       } catch (e) {
         console.warn("LIFF init failed:", e);
       }
@@ -803,11 +800,19 @@ export default function Page() {
                     {loading ? "Processing…" : "Deposit"}
                   </Button>
 
-                  {earnMode === "locked" && (
-                    <p className="mt-2 text-xs text-amber-700">
-                      * Locked mode adalah <b>demo/simulasi off-chain</b> untuk presentasi. Dana tetap di flexible vault, tapi Anda dapat progres misi & catatan rencana.
-                    </p>
-                  )}
+                  {earnMode === "locked" && lockedPositions.length > 0 && (
+  <div className="mt-4 rounded-xl border border-black/10 bg-white/60 p-3">
+    <div className="text-sm font-medium mb-2">Your Locked Plans (demo)</div>
+    <ul className="space-y-2 text-sm">
+      {lockedPositions.map((p, i) => (
+        <li key={i} className="flex items-center justify-between">
+          <span className="truncate">{p.plan}</span>
+          <span className="tabular-nums">{fmt(p.amount, 2)} USDT</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+)}
                 </div>
 
                 {/* Withdraw */}
@@ -837,10 +842,10 @@ export default function Page() {
               <section className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
                 <div className="text-lg font-medium">About Earn</div>
                 <ul className="mt-2 space-y-2 text-sm text-slate-700 list-disc pl-5">
-                  <li>Vault menerima <b>USDT</b>. Saat deposit, Anda menerima <b>shares</b> proporsional deposit.</li>
-                  <li>Nilai share naik seiring hasil strategi (auto-compounding). Target APY: {APY_PCT}%.</li>
-                  <li>Withdraw input dalam <b>USDT</b> — sistem konversi ke shares ekuivalen dan burn.</li>
-                  <li>Semua transaksi on-chain, bisa dilihat di tab <b>Activity</b>.</li>
+                  <li>Vault accepts <b>USDT</b>. When you deposit, you receive <b>shares</b> proportional deposit.</li>
+                  <li>Share value increases along with the results of the strategy (auto-compounding). Target APY: {APY_PCT}%.</li>
+                  <li>Withdraw input in <b>USDT</b> — sconversion system to equivalent shares and burn.</li>
+                  <li>All on-chain transactions can be seen in the tab <b>Activity</b>.</li>
                 </ul>
               </section>
             </>
@@ -1059,7 +1064,7 @@ export default function Page() {
                   </ol>
                 )}
               </div>
-              <p className="text-xs text-slate-500">Leaderboard dihitung dari total <b>Deposit</b> on-chain (USDT) + bonus points pribadi. Hanya Top 100 ditampilkan.</p>
+              <p className="text-xs text-slate-500">Leaderboard is calculated from the total <b>Deposit</b> on-chain (USDT) + personal bonus points. Only the Top 100 are displayed.</p>
             </section>
           )}
 

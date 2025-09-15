@@ -1,8 +1,12 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
-import LiffProvider from "@/components/LiffProvider"; // kalau LiffProvider kamu default export
-import DappPortalProvider from "@/components/DappPortalProvider"; // default import
+
+// LiffProvider diexport sebagai named — pakai {}
+import { LiffProvider } from "@/components/LiffProvider";
+
+// DappPortalProvider default export — tanpa {}
+import DappPortalProvider from "@/components/DappPortalProvider";
 
 export const metadata: Metadata = {
   title: "MORE Earn",
@@ -14,9 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body>
         <LiffProvider>
-          <DappPortalProvider>
-            {children}
-          </DappPortalProvider>
+          <DappPortalProvider>{children}</DappPortalProvider>
         </LiffProvider>
       </body>
     </html>
