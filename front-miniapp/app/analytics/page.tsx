@@ -29,18 +29,78 @@ function Card({
   );
 }
 
+/** Format angka aman (null/undefined/NaN -> "—") */
+function nfmt(n: unknown, dp = 0) {
+  if (n === null || n === undefined) return "—";
+  const num = Number(n);
+  if (!Number.isFinite(num)) return "—";
+  return num.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: dp,
+  });
+}
+
+/** Validasi bentuk payload API supaya gak bikin UI crash */
+function normalizeStats(x: any): Stats {
+  return {
+    tvl:
+      x && typeof x.tvl === "number" && Number.isFinite(x.tvl)
+        ? x.tvl
+        : x?.tvl === null
+        ? null
+        : null,
+    users:
+      x && typeof x.users === "number" && Number.isFinite(x.users) ? x.users : 0,
+    totalDeposits:
+      x && typeof x.totalDeposits === "number" && Number.isFinite(x.totalDeposits)
+        ? x.totalDeposits
+        : 0,
+    totalWithdraws:
+      x && typeof x.totalWithdraws === "number" && Number.isFinite(x.totalWithdraws)
+        ? x.totalWithdraws
+        : 0,
+    updatedAt: x?.updatedAt || new Date().toISOString(),
+    fromBlock:
+      typeof x?.fromBlock === "number" && Number.isFinite(x.fromBlock) ? x.fromBlock : 0,
+  };
+}
+
 export default function AnalyticsPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   async function load() {
     setLoading(true);
+    setErr(null);
     try {
       const res = await fetch("/api/analytics", { cache: "no-store" });
-      const js = await res.json();
-      setStats(js);
-    } catch (e) {
-      console.warn(e);
+      const js = await res.json().catch(() => ({}));
+      if (!res.ok || js?.error) {
+        setErr(js?.error || `Request failed: ${res.status}`);
+        setStats(
+          normalizeStats({
+            tvl: null,
+            users: 0,
+            totalDeposits: 0,
+            totalWithdraws: 0,
+            fromBlock: 0,
+          })
+        );
+      } else {
+        setStats(normalizeStats(js));
+      }
+    } catch (e: any) {
+      setErr(e?.message || "Failed to load analytics");
+      setStats(
+        normalizeStats({
+          tvl: null,
+          users: 0,
+          totalDeposits: 0,
+          totalWithdraws: 0,
+          fromBlock: 0,
+        })
+      );
     } finally {
       setLoading(false);
     }
@@ -65,6 +125,12 @@ export default function AnalyticsPage() {
         </button>
       </div>
 
+      {err && (
+        <div className="mb-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          {err}
+        </div>
+      )}
+
       {!stats ? (
         <div className="text-gray-500">Loading…</div>
       ) : (
@@ -72,32 +138,23 @@ export default function AnalyticsPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card
               title="TVL (USDT)"
-              value={stats.tvl === null ? "—" : stats.tvl.toLocaleString()}
-              hint="From totalAssets(), if available"
+              value={stats.tvl === null ? "—" : nfmt(stats.tvl, 0)}
+              hint="Balance USDT di vault (read-only RPC)"
             />
-            <Card title="Users" value={stats.users.toLocaleString()} />
-            <Card
-              title="Total Deposits"
-              value={stats.totalDeposits.toLocaleString()}
-            />
-            <Card
-              title="Total Withdrawals"
-              value={stats.totalWithdraws.toLocaleString()}
-            />
+            <Card title="Users" value={nfmt(stats.users)} />
+            <Card title="Total Deposits" value={nfmt(stats.totalDeposits)} />
+            <Card title="Total Withdrawals" value={nfmt(stats.totalWithdraws)} />
           </div>
 
           <div className="text-xs text-gray-500 mt-4">
-            Updated: {new Date(stats.updatedAt).toLocaleString()} · From block{" "}
-            {stats.fromBlock}
+            Updated: {new Date(stats.updatedAt).toLocaleString()} · From block {nfmt(stats.fromBlock)}
           </div>
 
           {/* Minimal sparkline placeholder (no historical cache yet) */}
           <div className="mt-6 bg-white rounded-2xl p-4 shadow-sm border">
-            <div className="text-sm font-medium mb-2">TVL sparkline</div>
+            <div className="text-sm font-medium mb-2">TVL snapshot</div>
             <div className="text-[12px] text-gray-500">
-              For the demo we render current TVL only. If you want a real
-              sparkline, we can store historical snapshots in a flat JSON file
-              under <code>/app/api/analytics</code> and append regularly.
+              Saat ini hanya menampilkan TVL terkini. Untuk sparkline, simpan snapshot harian lalu render sebagai mini chart.
             </div>
             <svg viewBox="0 0 300 80" className="w-full mt-3">
               <rect x="0" y="0" width="300" height="80" fill="#f9fafb" />
@@ -105,7 +162,7 @@ export default function AnalyticsPage() {
                 TVL
               </text>
               <text x="10" y="50" fontSize="18" fontWeight="700" fill="#0f766e">
-                {stats.tvl === null ? "—" : stats.tvl.toLocaleString()} USDT
+                {stats.tvl === null ? "—" : `${nfmt(stats.tvl)} USDT`}
               </text>
             </svg>
           </div>

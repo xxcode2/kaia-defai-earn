@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import clsx from "clsx";
 import {
   BrowserProvider,
+  JsonRpcProvider,
   Contract,
   Log,
   formatUnits,
@@ -20,6 +21,8 @@ const FROM_BLOCK = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || "0");
 const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || "1001");
 const APY_PCT = Number(process.env.NEXT_PUBLIC_APY || "5");
 const SCOPE = (process.env.NEXT_PUBLIC_SCOPE || "https://kairos.scope.kaia.io").replace(/\/+$/, "");
+const RPC_HTTP = (process.env.NEXT_PUBLIC_RPC_HTTP || "").trim(); // optional read-only RPC
+const LIFF_ID = (process.env.NEXT_PUBLIC_LIFF_ID || "").trim();
 
 /* ================== CONST ================== */
 const SHARE_DECIMALS = 18;
@@ -53,16 +56,37 @@ function fmt(n?: number, dp = 2) {
   if (n === undefined || n === null || Number.isNaN(n)) return "—";
   return Number(n).toLocaleString(undefined, { maximumFractionDigits: dp });
 }
-async function getProviderAndSigner() {
-  if (!(window as any).ethereum) throw new Error("Wallet belum terpasang.");
-  const provider = new BrowserProvider((window as any).ethereum);
-  const signer = await provider.getSigner();
-  const net = await provider.getNetwork();
-  if (CHAIN_ID && Number(net.chainId) !== CHAIN_ID) {
-    console.warn(`⚠ Expected chainId ${CHAIN_ID}, got ${net.chainId}`);
-  }
-  return { provider, signer };
+
+function hasWindowEth() {
+  return typeof window !== "undefined" && !!(window as any).ethereum;
 }
+
+/** Provider read-only untuk membaca chain tanpa memicu koneksi */
+function getReadProvider() {
+  if (hasWindowEth()) {
+    // BrowserProvider masih aman untuk read; tidak panggil getSigner
+    return new BrowserProvider((window as any).ethereum);
+  }
+  if (RPC_HTTP) {
+    return new JsonRpcProvider(RPC_HTTP);
+  }
+  throw new Error("Tidak ada provider. Pasang wallet atau set NEXT_PUBLIC_RPC_HTTP.");
+}
+
+/** Balikkan signer HANYA jika sudah terkoneksi (ada account). Tidak memicu connect pop-up. */
+async function getSignerIfConnected():
+  Promise<{ provider: BrowserProvider; signerAddress: string; signer: any } | null> {
+  if (!hasWindowEth()) return null;
+  const provider = new BrowserProvider((window as any).ethereum);
+  // cek akun yang sudah approved
+  const accs: string[] = await (window as any).ethereum.request({ method: "eth_accounts" }).catch(() => []);
+  const addr = accs?.[0];
+  if (!addr) return null;
+  // getSigner TIDAK memicu pop-up kalau account sudah ada
+  const signer = await provider.getSigner();
+  return { provider, signerAddress: addr, signer };
+}
+
 async function tryCall(c: any, fn: string, ...args: any[]) {
   if (!c || typeof c[fn] !== "function") return null;
   try {
@@ -212,7 +236,7 @@ export default function Page() {
       .sort((a, b) => b.pts - a.pts);
   }, [activity]);
 
-  const basePoints = 120; // contoh poin dasar off-chain
+  const basePoints = 0; // contoh poin dasar off-chain
   const totalPoints = useMemo(() => basePoints + missionPts, [missionPts]);
 
   const leaders = useMemo(() => {
@@ -237,49 +261,84 @@ export default function Page() {
     saveMissions(address, missions);
   }, [address, missions]);
 
-  /* ===== Refresh balances ===== */
+  /* ===== Optional: LIFF init (tidak auto-connect wallet) ===== */
+  useEffect(() => {
+    if (!LIFF_ID) return;
+    (async () => {
+      try {
+        const liff = (await import("@line/liff")).default;
+        if (!liff.isInClient()) {
+          // tetap bisa jalan di browser biasa, LIFF hanya di-inisialisasi
+        }
+        await liff.init({ liffId: LIFF_ID });
+        // tidak ada aksi lanjutan di sini; hanya ready untuk nanti jika dibutuhkan
+        // console.log("LIFF ready:", liff.isLoggedIn());
+      } catch (e) {
+        console.warn("LIFF init failed:", e);
+      }
+    })();
+  }, []);
+
+  /* ===== Refresh balances (read-only by default) ===== */
   const refresh = useCallback(async () => {
     try {
-      const { provider, signer } = await getProviderAndSigner();
-      const me = await signer.getAddress();
-      setAddress(me);
+      const readProvider = getReadProvider();
 
-      const usdtRead: any = new Contract(USDT, usdtJson.abi, provider);
-      const vaultRead: any = new Contract(VAULT, vaultJson.abi, provider);
+      // Kontrak read-only
+      const usdtRead: any = new Contract(USDT, usdtJson.abi, readProvider);
+      const vaultRead: any = new Contract(VAULT, vaultJson.abi, readProvider);
 
+      // Decimals
       const aDec = Number((await tryCall(usdtRead, "decimals")) ?? 6);
       setAssetDecimals(aDec);
 
-      const wBal = await tryCall(usdtRead, "balanceOf", me);
-      setWalletUSDT(Number(formatUnits(wBal ?? 0n, aDec)));
-
+      // TVL = balanceOf(USDT, VAULT)
       const tvlBal = await tryCall(usdtRead, "balanceOf", VAULT);
       setVaultTVL(Number(formatUnits(tvlBal ?? 0n, aDec)));
 
-      const uShares = (await tryCall(vaultRead, "shares", me)) ?? 0n;
+      // Total shares & assets
       const tShares = (await tryCall(vaultRead, "totalShares")) ?? 0n;
       const tAssets = (await tryCall(vaultRead, "totalAssets")) ?? 0n;
-
-      setUserSharesRaw(uShares);
       setTotalSharesRaw(tShares);
       setTotalAssetsRaw(tAssets);
-
-      setUserShares(Number(formatUnits(uShares, SHARE_DECIMALS)));
       setTotalShares(Number(formatUnits(tShares, SHARE_DECIMALS)));
       setTotalAssets(Number(formatUnits(tAssets, aDec)));
 
-      // earnings
-      const apy = APY_PCT / 100;
-      const userAssets =
-        tShares === 0n ? 0 : Number(formatUnits((uShares * tAssets) / tShares, aDec));
-      setDaily((userAssets * apy) / 365);
-      setMonthly((userAssets * apy) / 12);
+      // Jika sudah connected, baru hit user-specific reads (wallet balance, shares)
+      const signerInfo = await getSignerIfConnected();
+      if (signerInfo) {
+        const { signerAddress } = signerInfo;
+        setAddress(signerAddress);
+
+        const wBal = await tryCall(usdtRead, "balanceOf", signerAddress);
+        setWalletUSDT(Number(formatUnits(wBal ?? 0n, aDec)));
+
+        const uShares = (await tryCall(vaultRead, "shares", signerAddress)) ?? 0n;
+        setUserSharesRaw(uShares);
+        setUserShares(Number(formatUnits(uShares, SHARE_DECIMALS)));
+
+        // earnings
+        const apy = APY_PCT / 100;
+        const userAssets =
+          tShares === 0n ? 0 : Number(formatUnits((uShares * tAssets) / tShares, aDec));
+        setDaily((userAssets * apy) / 365);
+        setMonthly((userAssets * apy) / 12);
+      } else {
+        // belum connect
+        setAddress("");
+        setWalletUSDT(0);
+        setUserSharesRaw(0n);
+        setUserShares(0);
+        setDaily(0);
+        setMonthly(0);
+      }
     } catch (e) {
       console.warn(e);
     }
   }, []);
 
   useEffect(() => {
+    // awal load hanya read; tidak memicu pop-up connect
     refresh();
   }, [refresh]);
 
@@ -346,10 +405,21 @@ export default function Page() {
   async function onDepositFlexible() {
     try {
       setLoading(true);
-      const { signer } = await getProviderAndSigner();
+
+      // Pastikan sudah connect dulu
+      if (!hasWindowEth()) throw new Error("Wallet belum terpasang.");
+      // Minta connect kalau belum
+      const accs: string[] = await (window as any).ethereum.request({ method: "eth_accounts" });
+      if (!accs?.[0]) {
+        await (window as any).ethereum.request({ method: "eth_requestAccounts" });
+      }
+
+      const provider = new BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
+      const me = await signer.getAddress();
+
       const usdt: any = new Contract(USDT, usdtJson.abi, signer);
       const vault: any = new Contract(VAULT, vaultJson.abi, signer);
-      const me = await signer.getAddress();
 
       const assets = parseUnits(depAmt || "0", assetDecimals);
 
@@ -418,7 +488,15 @@ export default function Page() {
   async function onWithdrawUSDT() {
     try {
       setLoading(true);
-      const { signer } = await getProviderAndSigner();
+
+      if (!hasWindowEth()) throw new Error("Wallet belum terpasang.");
+      const accs: string[] = await (window as any).ethereum.request({ method: "eth_accounts" });
+      if (!accs?.[0]) {
+        await (window as any).ethereum.request({ method: "eth_requestAccounts" });
+      }
+
+      const provider = new BrowserProvider((window as any).ethereum);
+      const signer = await provider.getSigner();
       const vault: any = new Contract(VAULT, vaultJson.abi, signer);
 
       const assetsRaw = parseUnits(wdAmt || "0", assetDecimals);
@@ -457,7 +535,12 @@ export default function Page() {
   /* Wallet */
   async function connectWallet() {
     try {
-      await (window as any).ethereum?.request?.({ method: "eth_requestAccounts" });
+      if (!hasWindowEth()) throw new Error("Wallet belum terpasang.");
+      const accs: string[] = await (window as any).ethereum.request({ method: "eth_accounts" });
+      if (!accs?.[0]) {
+        await (window as any).ethereum.request({ method: "eth_requestAccounts" });
+      }
+      // setelah connect, refresh data user
       await refresh();
       toast("Wallet connected");
     } catch (e: any) {
@@ -497,10 +580,10 @@ export default function Page() {
   const fetchActivity = useCallback(async () => {
     try {
       setActLoading(true);
-      const { provider } = await getProviderAndSigner();
+      const provider = getReadProvider();
       const vaultIface = new Contract(VAULT, vaultJson.abi).interface as any;
 
-      // Dapatkan topic hash secara aman
+      // Dapatkan topic hash secara aman (mendukung ethers v6)
       const depFrag = vaultIface.getEvent?.("Deposit");
       const wdFrag  = vaultIface.getEvent?.("Withdraw");
 
@@ -715,15 +798,14 @@ export default function Page() {
                     className="mt-3"
                     size="lg"
                     onClick={earnMode === "flexible" ? onDepositFlexible : onDepositLockedDemo}
-                    disabled={loading || !address}
+                    disabled={loading}
                   >
                     {loading ? "Processing…" : "Deposit"}
                   </Button>
 
                   {earnMode === "locked" && (
                     <p className="mt-2 text-xs text-amber-700">
-                      * Locked mode is <b>demo/simulasi off-chain</b> For presentation purposes. 
-                      Funds remain in the flexible vault, but you receive mission progress and plan notes.
+                      * Locked mode adalah <b>demo/simulasi off-chain</b> untuk presentasi. Dana tetap di flexible vault, tapi Anda dapat progres misi & catatan rencana.
                     </p>
                   )}
                 </div>
@@ -744,7 +826,7 @@ export default function Page() {
                     size="lg"
                     tone="dark"
                     onClick={onWithdrawUSDT}
-                    disabled={loading || !address}
+                    disabled={loading}
                   >
                     {loading ? "Processing…" : "Withdraw"}
                   </Button>
@@ -755,10 +837,10 @@ export default function Page() {
               <section className="rounded-3xl border border-black/5 bg-white/70 backdrop-blur-xl p-5 shadow-sm">
                 <div className="text-lg font-medium">About Earn</div>
                 <ul className="mt-2 space-y-2 text-sm text-slate-700 list-disc pl-5">
-                  <li>The vault accepts <b>USDT</b>. Upon deposit, you receive <b>shares</b> proportional to your deposit.</li>
-                  <li>Share value increases as the strategy yields results (auto-compounding). APY target: {APY_PCT}%.</li>
-                  <li>Withdrawals are input in <b>USDT</b> — the system converts to the equivalent shares and burns them.</li>
-                  <li>All transactions are recorded on-chain and can be tracked via the <b>Activity</b> tab.</li>
+                  <li>Vault menerima <b>USDT</b>. Saat deposit, Anda menerima <b>shares</b> proporsional deposit.</li>
+                  <li>Nilai share naik seiring hasil strategi (auto-compounding). Target APY: {APY_PCT}%.</li>
+                  <li>Withdraw input dalam <b>USDT</b> — sistem konversi ke shares ekuivalen dan burn.</li>
+                  <li>Semua transaksi on-chain, bisa dilihat di tab <b>Activity</b>.</li>
                 </ul>
               </section>
             </>

@@ -14,6 +14,10 @@ function getEth(): EthereumProvider {
   return (window as any).ethereum;
 }
 
+/**
+ * Hook untuk mendapatkan address saat ini.
+ * Tidak auto-connect, hanya baca jika wallet sudah connect sebelumnya.
+ */
 export function useAddress(): string {
   const [addr, setAddr] = useState<string>("");
 
@@ -21,13 +25,13 @@ export function useAddress(): string {
     const eth = getEth();
     if (!eth) return;
 
-    // initial fetch
+    // cek apakah sudah pernah connect (eth_accounts, bukan eth_requestAccounts)
     eth
       .request({ method: "eth_accounts" })
       .then((accs: string[]) => setAddr(accs?.[0] ?? ""))
       .catch(() => {});
 
-    // listen to changes
+    // listen perubahan akun
     const onAccountsChanged = (accs: string[]) => setAddr(accs?.[0] ?? "");
     eth.on?.("accountsChanged", onAccountsChanged);
 
@@ -37,6 +41,25 @@ export function useAddress(): string {
   return addr;
 }
 
+/**
+ * Fungsi untuk explicit connect — dipanggil manual dari tombol.
+ */
+export async function connectWallet(): Promise<string | null> {
+  try {
+    const eth = getEth();
+    if (!eth) throw new Error("Ethereum provider not found");
+    const accs: string[] = await eth.request({ method: "eth_requestAccounts" });
+    return accs?.[0] ?? null;
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+/**
+ * Fungsi untuk disconnect (revoke permissions).
+ * Tidak semua wallet support, jadi dibuat silent kalau gagal.
+ */
 export async function disconnectWallet() {
   const eth = getEth();
   try {
@@ -45,6 +68,6 @@ export async function disconnectWallet() {
       params: [{ eth_accounts: {} }],
     });
   } catch {
-    // sebagian wallet tidak support; cukup silent
+    // sebagian wallet tidak support
   }
 }
