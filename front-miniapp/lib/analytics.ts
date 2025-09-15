@@ -1,9 +1,9 @@
 import { JsonRpcProvider, Log } from "ethers";
 import { TRANSFER_TOPIC, topicAddr, hexToBigInt } from "./erc20";
 
-const USDT = (process.env.NEXT_PUBLIC_USDT || "").toLowerCase();
-const VAULT = (process.env.NEXT_PUBLIC_VAULT || "").toLowerCase();
-const FROM_BLOCK = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || "0");
+const USDT = (process.env.NEXT_PUBLIC_USDT || "0xB00ce96eE443CAa3d902f6B062C6A69310A88086").toLowerCase();
+const VAULT = (process.env.NEXT_PUBLIC_VAULT || "0x328f7dEB7a47EE05D2013395096613F8929d7015").toLowerCase();
+const FROM_BLOCK = Number(process.env.NEXT_PUBLIC_VAULT_FROM_BLOCK || "196058363");
 const RPC = process.env.NEXT_PUBLIC_RPC || "https://public-en-kairos.node.kaia.io";
 export const USDT_DECIMALS = 6;
 

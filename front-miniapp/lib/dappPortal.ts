@@ -1,34 +1,81 @@
 // lib/dappPortal.ts
-import { DappPortalSDK } from "@linenext/dapp-portal-sdk";
+import DappPortalSDK from "@linenext/dapp-portal-sdk";
+
+type InitConfig = {
+  clientId?: string;             // ex: process.env.NEXT_PUBLIC_KAIA_CLIENT_ID
+  chainId?: string | number;     // "8217" (Kaia mainnet) / "1001" (Kairos testnet)
+};
 
 let sdkInstance: any | null = null;
 
-export async function getDappPortal() {
-  if (typeof window === "undefined") return null;
-
-  const clientId = process.env.NEXT_PUBLIC_DAPP_CLIENT_ID || "";
-  const chainId = (process.env.NEXT_PUBLIC_CHAIN_ID || "1001").toString();
-
-  if (!clientId) {
-    // Belum ada clientId → skip tanpa error
-    return null;
-  }
-
+/**
+ * Membuat / mengembalikan instance SDK (singleton).
+ * Tidak memicu koneksi wallet. Hanya inisialisasi.
+ */
+function ensureSDK(cfg?: InitConfig) {
   if (sdkInstance) return sdkInstance;
 
-  const DappPortalSDK = (await import("@linenext/dapp-portal-sdk"))
-    .default as unknown as typeof DappPortalSDKType;
+  const clientId =
+    cfg?.clientId ?? process.env.NEXT_PUBLIC_KAIA_CLIENT_ID ?? "";
+  const chainId =
+    String(cfg?.chainId ?? process.env.NEXT_PUBLIC_CHAIN_ID ?? "1001");
 
-  // @ts-ignore - jenis konstruktor SDK: new DappPortalSDK({ clientId, chainId })
-  const sdk = new DappPortalSDK({ clientId, chainId });
-
-  // Beberapa versi SDK pakai Init() dengan huruf besar
-  if (typeof (sdk as any).Init === "function") {
-    await (sdk as any).Init();
-  } else if (typeof (sdk as any).init === "function") {
-    await (sdk as any).init();
+  if (!clientId) {
+    // Jangan lempar error fatal saat dev; cukup warning agar halaman tetap render.
+    console.warn(
+      "[DappPortal] Missing clientId. Set NEXT_PUBLIC_KAIA_CLIENT_ID in env."
+    );
   }
 
-  sdkInstance = sdk;
+  sdkInstance = new DappPortalSDK({
+    clientId,
+    chainId,
+  });
+
   return sdkInstance;
+}
+
+/**
+ * Panggil ini sekali saat app start (misal di provider useEffect).
+ * - Cek kompatibilitas browser (optional).
+ * - TIDAK melakukan connect wallet otomatis.
+ */
+export async function initDappPortal(cfg?: InitConfig) {
+  const sdk = ensureSDK(cfg);
+
+  try {
+    // Ikuti guideline: tampilkan panduan jika browser tidak didukung.
+    if (typeof sdk.isSupportedBrowser === "function" && !sdk.isSupportedBrowser()) {
+      await sdk.showUnsupportedBrowserGuide?.();
+    }
+  } catch (e) {
+    // Tidak memblokir UI
+    console.warn("[DappPortal] Browser support check failed:", e);
+  }
+
+  return sdk;
+}
+
+/**
+ * Ambil WalletProvider (EIP-1193 compatible) saat dibutuhkan,
+ * misalnya ketika user klik tombol "Connect".
+ */
+export function getWalletProvider() {
+  const sdk = ensureSDK();
+  return sdk.getWalletProvider?.();
+}
+
+/**
+ * Ambil PaymentProvider (jika akan pakai fitur pembayaran).
+ */
+export function getPaymentProvider() {
+  const sdk = ensureSDK();
+  return sdk.getPaymentProvider?.();
+}
+
+/**
+ * Utility untuk reset (biasanya tidak perlu, tapi berguna untuk testing HMR).
+ */
+export function __resetDappPortalForTests() {
+  sdkInstance = null;
 }
