@@ -7,6 +7,8 @@
     "start": "next start -p 3000"
   },
   "dependencies": {
+    "@linenext/dapp-portal-sdk":,
+    "next": "14.2.5",
     "@line/liff": "^2.22.0",
     "autoprefixer": "^10.4.21",
     "clsx": "^2.1.1",

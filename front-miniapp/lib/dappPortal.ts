@@ -1,5 +1,5 @@
 // lib/dappPortal.ts
-import type DappPortalSDKType from "@linenext/dapp-portal-sdk";
+import { DappPortalSDK } from "@linenext/dapp-portal-sdk";
 
 let sdkInstance: any | null = null;
 
