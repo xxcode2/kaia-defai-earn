@@ -154,7 +154,7 @@ export default function AnalyticsPage() {
           <div className="mt-6 bg-white rounded-2xl p-4 shadow-sm border">
             <div className="text-sm font-medium mb-2">TVL snapshot</div>
             <div className="text-[12px] text-gray-500">
-              Saat ini hanya menampilkan TVL terkini. Untuk sparkline, simpan snapshot harian lalu render sebagai mini chart.
+              Currently, it only displays the current TVL. For sparklines, save a daily snapshot and render it as a mini chart.
             </div>
             <svg viewBox="0 0 300 80" className="w-full mt-3">
               <rect x="0" y="0" width="300" height="80" fill="#f9fafb" />
