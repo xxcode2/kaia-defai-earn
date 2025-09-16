@@ -1,95 +1,71 @@
-'use client';
+"use client";
 
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { ethers } from 'ethers';
+import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { initMini, getMiniDapp, isLiff, ensureWalletConnected } from "@/lib/miniDapp";
 
-type DappContextValue = {
-  address?: string;
-  chainId?: number;
-  provider?: ethers.BrowserProvider;
+type Ctx = {
+  address: string | null;
   isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
 };
 
-const DappPortalContext = createContext<DappContextValue | null>(null);
+const DappPortalCtx = createContext<Ctx | null>(null);
 
 export function DappPortalProvider({ children }: { children: React.ReactNode }) {
-  const [address, setAddress] = useState<string>();
-  const [chainId, setChainId] = useState<number>();
-  const [provider, setProvider] = useState<ethers.BrowserProvider>();
+  const [address, setAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
 
+  // Init MiniDapp shim/SDK sekali
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const eth = (window as any).ethereum;
-    if (!eth) return;
-
-    const prov = new ethers.BrowserProvider(eth);
-    setProvider(prov);
-
-    const onAccountsChanged = (accounts: string[]) => {
-      setAddress(accounts?.length ? ethers.getAddress(accounts[0]) : undefined);
-    };
-    const onChainChanged = async () => {
-      try {
-        const net = await prov.getNetwork();
-        setChainId(Number(net.chainId));
-      } catch {}
-    };
-
-    eth.on?.('accountsChanged', onAccountsChanged);
-    eth.on?.('chainChanged', onChainChanged);
-
-    (async () => {
-      try {
-        const accounts: string[] = await eth.request?.({ method: 'eth_accounts' });
-        if (accounts?.length) setAddress(ethers.getAddress(accounts[0]));
-        const net = await prov.getNetwork();
-        setChainId(Number(net.chainId));
-      } catch {}
-    })();
-
-    return () => {
-      eth.removeListener?.('accountsChanged', onAccountsChanged);
-      eth.removeListener?.('chainChanged', onChainChanged);
-    };
+    initMini().catch(() => {});
   }, []);
 
-  const connect = async () => {
-    if (!provider) throw new Error('Wallet provider tidak tersedia.');
-    try {
+  const connect = useMemo(
+    () => async () => {
+      if (isConnecting) return;
       setIsConnecting(true);
-      const eth = (window as any).ethereum;
-      await eth.request({ method: 'eth_requestAccounts' });
-      const signer = await provider.getSigner();
-      const addr = await signer.getAddress();
-      const net = await provider.getNetwork();
-      setAddress(ethers.getAddress(addr));
-      setChainId(Number(net.chainId));
-    } finally {
-      setIsConnecting(false);
-    }
-  };
-
-  const disconnect = async () => {
-    setAddress(undefined);
-  };
-
-  const value = useMemo(
-    () => ({ address, chainId, provider, isConnecting, connect, disconnect }),
-    [address, chainId, provider, isConnecting]
+      try {
+        if (isLiff()) {
+          // LIFF / Mini Dapp route
+          const addr = await ensureWalletConnected();
+          if (!addr) throw new Error("Failed to connect wallet");
+          setAddress(addr);
+        } else {
+          // Web fallback → Metamask/Kaia wallet
+          const eth = (globalThis as any).ethereum;
+          if (!eth) throw new Error("No wallet provider found. Install Metamask/Kaia Wallet.");
+          const accts: string[] = await eth.request({ method: "eth_requestAccounts" });
+          if (!accts?.length) throw new Error("No account selected");
+          setAddress(accts[0]);
+        }
+      } finally {
+        setIsConnecting(false);
+      }
+    },
+    [isConnecting]
   );
 
-  return <DappPortalContext.Provider value={value}>{children}</DappPortalContext.Provider>;
+  const disconnect = useMemo(
+    () => async () => {
+      try {
+        if (isLiff()) {
+          const sdk = getMiniDapp();
+          await sdk.disconnectWallet?.();
+        }
+      } finally {
+        setAddress(null);
+      }
+    },
+    []
+  );
+
+  const value: Ctx = { address, isConnecting, connect, disconnect };
+  return <DappPortalCtx.Provider value={value}>{children}</DappPortalCtx.Provider>;
 }
 
-/** ✅ Named hook export */
-export function useDappPortal() {
-  const ctx = useContext(DappPortalContext);
-  if (!ctx) throw new Error('useDappPortal harus dipakai di dalam <DappPortalProvider>.');
+export function useDappPortal(): Ctx {
+  const ctx = useContext(DappPortalCtx);
+  if (!ctx) throw new Error("useDappPortal must be used within <DappPortalProvider>");
   return ctx;
 }
-
-/** ✅ Default export untuk provider (sesuai import di layout.tsx) */
-export default DappPortalProvider;
