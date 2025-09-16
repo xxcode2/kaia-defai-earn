@@ -1,71 +1,90 @@
-"use client";
-
-import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { initMini, getMiniDapp, isLiff, ensureWalletConnected } from "@/lib/miniDapp";
+// components/DappPortalProvider.tsx
+'use client';
+import React, { createContext, useContext, useMemo, useState } from 'react';
+import EthereumProvider from '@walletconnect/ethereum-provider';
+import { ethers } from 'ethers';
 
 type Ctx = {
-  address: string | null;
+  address?: string;
   isConnecting: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
 };
 
-const DappPortalCtx = createContext<Ctx | null>(null);
+const DappPortalCtx = createContext<Ctx>({
+  isConnecting: false,
+  connect: async () => {},
+  disconnect: async () => {},
+});
 
-export function DappPortalProvider({ children }: { children: React.ReactNode }) {
-  const [address, setAddress] = useState<string | null>(null);
-  const [isConnecting, setIsConnecting] = useState(false);
-
-  // Init MiniDapp shim/SDK sekali
-  useEffect(() => {
-    initMini().catch(() => {});
-  }, []);
-
-  const connect = useMemo(
-    () => async () => {
-      if (isConnecting) return;
-      setIsConnecting(true);
-      try {
-        if (isLiff()) {
-          // LIFF / Mini Dapp route
-          const addr = await ensureWalletConnected();
-          if (!addr) throw new Error("Failed to connect wallet");
-          setAddress(addr);
-        } else {
-          // Web fallback → Metamask/Kaia wallet
-          const eth = (globalThis as any).ethereum;
-          if (!eth) throw new Error("No wallet provider found. Install Metamask/Kaia Wallet.");
-          const accts: string[] = await eth.request({ method: "eth_requestAccounts" });
-          if (!accts?.length) throw new Error("No account selected");
-          setAddress(accts[0]);
-        }
-      } finally {
-        setIsConnecting(false);
-      }
-    },
-    [isConnecting]
-  );
-
-  const disconnect = useMemo(
-    () => async () => {
-      try {
-        if (isLiff()) {
-          const sdk = getMiniDapp();
-          await sdk.disconnectWallet?.();
-        }
-      } finally {
-        setAddress(null);
-      }
-    },
-    []
-  );
-
-  const value: Ctx = { address, isConnecting, connect, disconnect };
-  return <DappPortalCtx.Provider value={value}>{children}</DappPortalCtx.Provider>;
+export function useDappPortal() {
+  return useContext(DappPortalCtx);
 }
 
-export function useDappPortal(): Ctx {
-  const ctx = useContext(DappPortalCtx);
-  if (!ctx) throw new Error("useDappPortal must be used within <DappPortalProvider>");
-  return ctx;
+export function DappPortalProvider({ children }: { children: React.ReactNode }) {
+  const [address, setAddress] = useState<string>();
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [wc, setWc] = useState<any>(null); // EthereumProvider WC v2
+  const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001);
+  const rpcUrl = process.env.NEXT_PUBLIC_RPC_HTTP!;
+  const projectId = process.env.NEXT_PUBLIC_WC_PROJECT_ID!;
+
+  async function connect() {
+    try {
+      setIsConnecting(true);
+
+      // 1) Coba injected provider dahulu (kalau buka dari wallet in-app browser)
+      const injected = (globalThis as any).ethereum;
+      if (injected && injected.request) {
+        const provider = new ethers.BrowserProvider(injected);
+        const accs = await injected.request({ method: 'eth_requestAccounts' });
+        setAddress(ethers.getAddress(accs[0]));
+        return;
+      }
+
+      // 2) LIFF / tidak ada injected → pakai WalletConnect v2
+      const wcProvider = await EthereumProvider.init({
+        projectId,
+        chains: [chainId],
+        rpcMap: { [chainId]: rpcUrl },
+        showQrModal: true,      // modal QR + deep-link ke Bitget/Kaikas
+        optionalMethods: ['eth_sendTransaction', 'personal_sign', 'eth_signTypedData'],
+        metadata: {
+          name: process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn',
+          description: process.env.NEXT_PUBLIC_APP_DESC || 'Kaia Mini Dapp',
+          url: process.env.NEXT_PUBLIC_APP_URL || 'https://more-earn.vercel.app',
+          icons: ['https://more-earn.vercel.app/brand/more1.png'],
+        },
+      });
+
+      // Buka modal & deep-link (di LIFF user akan diarahkan ke app wallet)
+      await wcProvider.connect();
+      setWc(wcProvider);
+
+      const provider = new ethers.BrowserProvider(wcProvider as any);
+      const signer = await provider.getSigner();
+      const addr = await signer.getAddress();
+      setAddress(ethers.getAddress(addr));
+
+      // Optional: simpan di window supaya bagian lain app bisa pakai
+      (globalThis as any).ethereum = wcProvider;
+    } finally {
+      setIsConnecting(false);
+    }
+  }
+
+  async function disconnect() {
+    try {
+      if (wc?.disconnect) await wc.disconnect();
+    } catch {}
+    setWc(null);
+    setAddress(undefined);
+  }
+
+  const value = useMemo(
+    () => ({ address, isConnecting, connect, disconnect }),
+    [address, isConnecting]
+  );
+
+  return <DappPortalCtx.Provider value={value}>{children}</DappPortalCtx.Provider>;
 }
