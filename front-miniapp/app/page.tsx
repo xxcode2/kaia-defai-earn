@@ -13,6 +13,9 @@ import {
 import usdtJson from "@/lib/abi/USDT.json";
 import vaultJson from "@/lib/abi/DefaiVault.json";
 import Image from "next/image";
+import { initMini, getMini } from "@/lib/miniDapp";
+import { getMiniDapp, isLiff } from "@/lib/miniDapp";
+import { getLang, t } from "@/lib/i18n";
 
 /* ================== ENV ================== */
 const VAULT = process.env.NEXT_PUBLIC_VAULT!;
@@ -152,10 +155,8 @@ export default function Page() {
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
-  const changeTab = (t: TabKey) => {
-    setTab(t);
-    location.hash = t;
-  };
+
+  const lang = getLang();
 
   // wallet/basic states
   const [address, setAddress] = useState<string>("");
@@ -182,6 +183,23 @@ export default function Page() {
   // forms
   const [depAmt, setDepAmt] = useState("100");
   const [wdAmt, setWdAmt] = useState("0");
+
+  const onShareToLINE = useCallback(async () => {
+    try {
+      const sdk = getMiniDapp();
+      await sdk.ready();
+      const link = refLink(address);
+      await sdk.shareToLine?.(`Join MORE Earn — simple USDT yield on Kaia\n${link}`);
+      toast("Shared to LINE");
+    } catch (e: any) {
+      alert(e?.message || "Share failed");
+    }
+  }, [address]);
+
+  const changeTab = (t: TabKey) => {
+    setTab(t);
+    location.hash = t;
+  };
 
   // earn mode
   type EarnMode = "flexible" | "locked";
@@ -275,6 +293,16 @@ export default function Page() {
       }
     })();
   }, []);
+
+useEffect(() => {
+  // Try init every 300ms until script is ready
+  const t = setInterval(async () => {
+    const ok = await initMini();
+    if (ok) clearInterval(t);
+  }, 300);
+  return () => clearInterval(t);
+}, []);
+
 
   /* ===== Refresh balances (read-only by default) ===== */
   const refresh = useCallback(async () => {
@@ -557,6 +585,43 @@ export default function Page() {
     setMonthly(0);
     toast("Disconnected");
   }
+
+const onBuyBooster = useCallback(async () => {
+  try {
+    const sdk = getMiniDapp();
+    await sdk.ready();
+
+    // Buka payment via SDK (demo/test)
+    const res = await sdk.openPayment({
+      itemId: "booster-001",
+      itemName: "Point Booster (7 days)",
+      fiatPrice: 1.99,
+      testMode: true, // WAJIB untuk demo/review
+    });
+
+    if (res?.status === "success") {
+      toast("Payment success ✅");
+    } else if (res?.status === "pending") {
+      toast("Payment pending…");
+    } else {
+      toast("Payment canceled");
+    }
+  } catch (e: any) {
+    alert(e?.message ?? "Payment error");
+  }
+  if (!confirm(t("paymentNotice", lang))) return;
+}, []);
+
+const onOpenPaymentHistory = useCallback(async () => {
+  try {
+    const sdk = getMiniDapp();
+    await sdk.ready();
+    await sdk.openPaymentHistory();
+  } catch (e: any) {
+    alert(e?.message ?? "Cannot open payment history");
+  }
+}, []);
+
 
   /* Form helpers */
   function onMaxDeposit() {
@@ -1025,7 +1090,12 @@ export default function Page() {
                   >
                     Copy link
                   </Button>
+                  {isLiff() && (
+  <Button subtle onClick={onShareToLINE}>Share to LINE</Button>
+)}
                   <Button subtle onClick={() => shareLink(refLink(address))} disabled={!address}>Share…</Button>
+                <Button onClick={onBuyBooster}>Buy Booster (Mini Dapp)</Button>
+    <Button subtle tone="dark" onClick={onOpenPaymentHistory}>Payment History</Button>
                 </div>
               </div>
             </section>
