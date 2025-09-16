@@ -297,8 +297,8 @@ export default function Page() {
 useEffect(() => {
   // Try init every 300ms until script is ready
   const t = setInterval(async () => {
-    const ok = await initMini();
-    if (ok) clearInterval(t);
+    await initMini();
+    clearInterval(t);
   }, 300);
   return () => clearInterval(t);
 }, []);
