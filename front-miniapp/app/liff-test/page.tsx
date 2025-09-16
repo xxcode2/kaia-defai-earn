@@ -5,7 +5,8 @@ import { useDappPortal } from '@/components/DappPortalProvider';
 import { useEffect, useState } from 'react';
 
 export default function LiffTestPage() {
-  const { address, chainId } = useDappPortal();
+  // Ambil hanya address (chainId belum ada di context)
+  const { address } = useDappPortal();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -20,7 +21,8 @@ export default function LiffTestPage() {
       <div className="text-sm text-gray-600">
         <div>Status: {ready ? 'Client Ready' : 'Loading…'}</div>
         <div>Address: {address ?? '—'}</div>
-        <div>Chain ID: {chainId ?? '—'}</div>
+        {/* Chain ID di-comment dulu karena belum ada di provider */}
+        {/* <div>Chain ID: {chainId ?? '—'}</div> */}
       </div>
     </main>
   );
