@@ -37,9 +37,16 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  return (
+   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {/* LIFF dulu, lalu DappPortal */}
+        <LiffProvider>
+          <DappPortalProvider>
+            {children}
+          </DappPortalProvider>
+        </LiffProvider>
+      </body>
     </html>
   );
 }

@@ -1,29 +1,36 @@
+// app/liff-test/page.tsx
 'use client';
 
-import ConnectWalletButton from '@/components/ConnectWalletButton';
-import { useDappPortal } from '@/components/DappPortalProvider';
+export const dynamic = 'force-dynamic'; // cegah SSG/prerender
+export const revalidate = 0;
+
 import { useEffect, useState } from 'react';
+import { useDappPortal } from '@/components/DappPortalProvider';
+import ConnectWalletButton from '@/components/ConnectWalletButton';
 
 export default function LiffTestPage() {
-  // Ambil hanya address (chainId belum ada di context)
-  const { address } = useDappPortal();
+  // aman dipakai karena halaman ini client component
+  const { address /* , chainId (opsional) */ } = useDappPortal();
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
-    setReady(true);
-  }, []);
+  useEffect(() => setReady(true), []);
 
-  if (!ready) return <div>Loading…</div>;
+  if (!ready) {
+    return (
+      <main className="p-4">
+        <div className="text-sm text-slate-500">Loading…</div>
+      </main>
+    );
+  }
 
   return (
     <main className="p-4 space-y-4">
       <h1 className="text-xl font-semibold">LIFF Test</h1>
       <ConnectWalletButton />
 
-      <div className="text-sm text-gray-600">
-        <div>Status: {ready ? 'Client Ready' : 'Loading…'}</div>
+      <div className="text-sm text-gray-600 space-y-1">
+        <div>Status: Client Ready</div>
         <div>Address: {address ?? '—'}</div>
-        {/* Chain ID di-comment dulu karena belum ada di provider */}
         {/* <div>Chain ID: {chainId ?? '—'}</div> */}
       </div>
     </main>
