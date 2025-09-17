@@ -1,26 +1,42 @@
 // app/layout.tsx
-import type { Metadata } from "next";
-import "./globals.css";
+import './globals.css';
+import type { Metadata } from 'next';
 
-// LiffProvider diexport sebagai named — pakai {}
-import { LiffProvider } from "@/components/LiffProvider";
-
-// DappPortalProvider default export — tanpa {}
-import { DappPortalProvider } from "@/components/DappPortalProvider";
+const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
 
 export const metadata: Metadata = {
-  title: "MORE Earn",
-  description: "More Earn – Kaia",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: 'MORE Earn',
+    template: '%s | MORE Earn',
+  },
+  description:
+    'Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.',
+  openGraph: {
+    title: 'MORE Earn',
+    description:
+      'Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.',
+    url: '/',
+    siteName: 'MORE Earn',
+    images: ['/og/cover.png'],
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    images: ['/og/cover.png'],
+  },
+  icons: { icon: '/brand/more.png' },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
-      <body>
-        <LiffProvider>
-          <DappPortalProvider>{children}</DappPortalProvider>
-        </LiffProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
