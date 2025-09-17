@@ -2,8 +2,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-import LiffProvider from "@/components/LiffProvider";              // default export
-import DappPortalProvider from "@/components/DappPortalProvider";  // default export
+import { LiffProvider } from "@/components/LiffProvider";              
+import { DappPortalProvider } from "@/components/DappPortalProvider";  
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://more-earn.vercel.app";
