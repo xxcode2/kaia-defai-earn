@@ -1,7 +1,6 @@
-// app/liff-test/page.tsx
 'use client';
 
-export const dynamic = 'force-dynamic'; // cegah prerender/SSG
+export const dynamic = 'force-dynamic'; // paksa SSR, jangan di-export statis
 export const revalidate = 0;            // atau: export const revalidate = false;
 
 import { useEffect, useState } from 'react';

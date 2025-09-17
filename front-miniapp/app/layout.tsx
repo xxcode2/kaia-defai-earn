@@ -1,35 +1,35 @@
 // app/layout.tsx
-import type { Metadata } from 'next';
-import './globals.css';
+import type { Metadata } from "next";
+import "./globals.css";
 
-import { LiffProvider } from "@/components/LiffProvider";   // LIFF wrapper
-import { DappPortalProvider } from "@/components/DappPortalProvider"; // named export
+import LiffProvider from "@/components/LiffProvider";              // default export
+import DappPortalProvider from "@/components/DappPortalProvider";  // default export
 
 const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
+  process.env.NEXT_PUBLIC_SITE_URL || "https://more-earn.vercel.app";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: 'MORE Earn',
-    template: '%s | MORE Earn',
+    default: "MORE Earn",
+    template: "%s | MORE Earn",
   },
   description:
-    'Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.',
+    "Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.",
   openGraph: {
-    title: 'MORE Earn',
+    title: "MORE Earn",
     description:
-      'Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.',
-    url: '/',
-    siteName: 'MORE Earn',
-    images: ['/og/cover.png'],
-    type: 'website',
+      "Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.",
+    url: "/",
+    siteName: "MORE Earn",
+    images: ["/og/cover.png"],
+    type: "website",
   },
   twitter: {
-    card: 'summary_large_image',
-    images: ['/og/cover.png'],
+    card: "summary_large_image",
+    images: ["/og/cover.png"],
   },
-  icons: { icon: '/brand/more.png' },
+  icons: { icon: "/brand/more.png" },
 };
 
 export default function RootLayout({
@@ -37,14 +37,12 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-   return (
-    <html lang="en">
-      <body>
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen bg-white text-slate-900">
         {/* LIFF dulu, lalu DappPortal */}
         <LiffProvider>
-          <DappPortalProvider>
-            {children}
-          </DappPortalProvider>
+          <DappPortalProvider>{children}</DappPortalProvider>
         </LiffProvider>
       </body>
     </html>
