@@ -1,6 +1,9 @@
 // app/layout.tsx
-import './globals.css';
 import type { Metadata } from 'next';
+import './globals.css';
+
+import { LiffProvider } from "@/components/LiffProvider";   // LIFF wrapper
+import { DappPortalProvider } from "@/components/DappPortalProvider"; // named export
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';

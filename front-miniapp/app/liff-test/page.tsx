@@ -13,6 +13,8 @@ export default function LiffTestPage() {
     setReady(true);
   }, []);
 
+  if (!ready) return <div>Loading…</div>;
+
   return (
     <main className="p-4 space-y-4">
       <h1 className="text-xl font-semibold">LIFF Test</h1>
