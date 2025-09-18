@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAccount } from 'wagmi';
 import { calcPoints, type PointsResult } from "@/lib/points";
 import { shorten } from "@/lib/utils";
 import { Copy, LogOut } from "lucide-react";
-import { disconnectWallet, useAddress } from "@/lib/wallet";
+import { disconnectWallet } from "@/lib/wallet";
+
 
 // === UI helpers ===
 function Pill({ children, tone = "slate" }: { children: React.ReactNode; tone?: "slate" | "emerald" }) {
@@ -45,7 +47,7 @@ function tierLabel(points: number) {
 
 // === Main page ===
 export default function ProfilePage() {
-  const addr = useAddress();
+ const { address: addr, isConnected } = useAccount();
   const [pts, setPts] = useState<PointsResult | null>(null);
 
   useEffect(() => {
