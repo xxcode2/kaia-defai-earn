@@ -1,74 +1,90 @@
 // lib/wallet.ts
-"use client";
-
-import { useEffect, useState } from "react";
-
-
-type EthereumProvider = {
-  request: (args: { method: string; params?: any[] | object }) => Promise<any>;
-  on?: (event: string, cb: (...a: any[]) => void) => void;
-  removeListener?: (event: string, cb: (...a: any[]) => void) => void;
-} | undefined;
-
-function getEth(): EthereumProvider {
-  if (typeof window === "undefined") return undefined;
-  return (window as any).ethereum;
-}
+'use client';
 
 /**
- * Hook untuk mendapatkan address saat ini.
- * Tidak auto-connect, hanya baca jika wallet sudah connect sebelumnya.
+ * Util wallet berbasis wagmi v2.
+ * - Gunakan untuk BACA state wallet (alamat, status, chain) dan DISCONNECT.
+ * - Untuk CONNECT, gunakan modal: `const { open } = useWeb3Modal(); open();`
  */
-export function useAddress(): string {
-  const [addr, setAddr] = useState<string>("");
 
-  useEffect(() => {
-    const eth = getEth();
-    if (!eth) return;
+import type { Hex } from 'viem';
+import {
+  getAccount,
+  watchAccount,
+  disconnect as wagmiDisconnect,
+  getChainId
+} from 'wagmi/actions';
 
-    // cek apakah sudah pernah connect (eth_accounts, bukan eth_requestAccounts)
-    eth
-      .request({ method: "eth_accounts" })
-      .then((accs: string[]) => setAddr(accs?.[0] ?? ""))
-      .catch(() => {});
+import { wagmiConfig } from '@/components/Web3ModalInit'; // pastikan ini export wagmiConfig
 
-    // listen perubahan akun
-    const onAccountsChanged = (accs: string[]) => setAddr(accs?.[0] ?? "");
-    eth.on?.("accountsChanged", onAccountsChanged);
+/** Snapshot status wallet saat ini. */
+export type WalletSnapshot = {
+  /** 'connected' | 'reconnecting' | 'connecting' | 'disconnected' */
+  status: 'connected' | 'reconnecting' | 'connecting' | 'disconnected';
+  /** Alamat EVM checksum, jika ada */
+  address: Hex | null;
+  /** Chain ID saat ini (mis. 1001 untuk Kairos), jika tersedia */
+  chainId: number | null;
+  /** Apakah sudah terhubung */
+  isConnected: boolean;
+};
 
-    return () => eth.removeListener?.("accountsChanged", onAccountsChanged);
-  }, []);
-
-  return addr;
-}
-
-/**
- * Fungsi untuk explicit connect — dipanggil manual dari tombol.
- */
-export async function connectWallet(): Promise<string | null> {
+/** Ambil snapshot wallet sekarang (tanpa memicu koneksi). */
+export function getWalletSnapshot(): WalletSnapshot {
+  const acc = getAccount(wagmiConfig);
+  let chainId: number | null = null;
   try {
-    const eth = getEth();
-    if (!eth) throw new Error("Ethereum provider not found");
-    const accs: string[] = await eth.request({ method: "eth_requestAccounts" });
-    return accs?.[0] ?? null;
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
-}
-
-/**
- * Fungsi untuk disconnect (revoke permissions).
- * Tidak semua wallet support, jadi dibuat silent kalau gagal.
- */
-export async function disconnectWallet() {
-  const eth = getEth();
-  try {
-    await eth?.request?.({
-      method: "wallet_revokePermissions",
-      params: [{ eth_accounts: {} }],
-    });
+    chainId = getChainId(wagmiConfig);
   } catch {
-    // sebagian wallet tidak support
+    chainId = null;
   }
+
+  return {
+    status: acc.status,
+    address: (acc.address as Hex) ?? null,
+    chainId,
+    isConnected: acc.status === 'connected'
+  };
+}
+
+/**
+ * Berlangganan perubahan wallet (address/status/chain).
+ * Return fungsi unsubscribe.
+ *
+ * Contoh:
+ * const un = onWalletChange((snap) => console.log(snap));
+ * // ...
+ * un();
+ */
+export function onWalletChange(
+  cb: (snapshot: WalletSnapshot) => void
+): () => void {
+  return watchAccount(wagmiConfig, {
+    onChange() {
+      cb(getWalletSnapshot());
+    }
+  });
+}
+
+/** Putuskan koneksi wallet (menutup sesi WalletConnect jika ada). */
+export async function disconnectWallet(): Promise<void> {
+  try {
+    await wagmiDisconnect(wagmiConfig);
+  } catch (e) {
+    // sebagian wallet bisa menolak; diamkan saja
+    console.warn('disconnectWallet error:', e);
+  }
+}
+
+/**
+ * (Deprecated) Connect wallet.
+ * Jangan pakai fungsi ini — gunakan modal:
+ *
+ *  const { open } = useWeb3Modal();
+ *  await open();
+ */
+export async function connectWalletDeprecated(): Promise<never> {
+  throw new Error(
+    'Gunakan useWeb3Modal().open() untuk connect. lib/wallet.ts hanya util baca & disconnect.'
+  );
 }
