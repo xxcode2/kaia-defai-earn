@@ -6,6 +6,7 @@ import { useDappPortal } from "@/components/DappPortalProvider";
 import { useAccount } from 'wagmi';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
 
+export const dynamic = 'force-dynamic';
 export default function LiffTestPage() {
   const { address } = useDappPortal();
   const { isConnected } = useAccount();
