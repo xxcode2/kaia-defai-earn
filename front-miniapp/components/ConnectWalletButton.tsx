@@ -1,6 +1,8 @@
+// components/ConnectWalletButton.tsx
 'use client';
 
-import { useDappPortal } from '@/components/DappPortalProvider';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
+import { useAccount, useDisconnect } from 'wagmi';
 
 function shortAddr(addr?: string) {
   if (!addr) return '';
@@ -8,14 +10,16 @@ function shortAddr(addr?: string) {
 }
 
 export default function ConnectWalletButton() {
-  const { address, isConnecting, connect, disconnect } = useDappPortal();
+  const { address, isConnecting } = useAccount();
+  const { open } = useWeb3Modal();
+  const { disconnect } = useDisconnect();
 
   if (!address) {
     return (
       <button
-        onClick={connect}
+        onClick={() => open()}
         disabled={isConnecting}
-        className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50 transition"
+        className="px-4 py-2 rounded-xl bg-black text-white hover:opacity-90 disabled:opacity-50"
       >
         {isConnecting ? 'Connecting…' : 'Connect Wallet'}
       </button>
@@ -24,12 +28,12 @@ export default function ConnectWalletButton() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-100 border border-gray-200">
+      <span className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-100">
         {shortAddr(address)}
       </span>
       <button
-        onClick={disconnect}
-        className="px-3 py-2 rounded-xl border border-gray-300 hover:bg-gray-50 transition"
+        onClick={() => disconnect()}
+        className="px-3 py-2 rounded-xl border border-gray-300 hover:bg-gray-50"
         title="Disconnect (clear session)"
       >
         Disconnect
