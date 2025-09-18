@@ -15,7 +15,7 @@ export default function ConnectWalletButton() {
       <button
         onClick={connect}
         disabled={isConnecting}
-        className="px-4 py-2 rounded-xl bg-black text-white hover:opacity-90 disabled:opacity-50"
+        className="px-4 py-2 rounded-xl bg-green-600 text-white font-semibold hover:bg-green-700 disabled:opacity-50 transition"
       >
         {isConnecting ? 'Connecting…' : 'Connect Wallet'}
       </button>
@@ -24,11 +24,13 @@ export default function ConnectWalletButton() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-100">{shortAddr(address)}</span>
+      <span className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-100 border border-gray-200">
+        {shortAddr(address)}
+      </span>
       <button
         onClick={disconnect}
-        className="px-3 py-2 rounded-xl border border-gray-300 hover:bg-gray-50"
-        title="Disconnect (clear session state)"
+        className="px-3 py-2 rounded-xl border border-gray-300 hover:bg-gray-50 transition"
+        title="Disconnect (clear session)"
       >
         Disconnect
       </button>

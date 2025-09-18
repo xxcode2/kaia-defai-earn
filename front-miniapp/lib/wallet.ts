@@ -2,19 +2,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { init } from "@reown/mini-dapp-sdk";
-
-const projectId = process.env.NEXT_PUBLIC_PROJECT_ID!;
-
-init({
-  projectId,
-  metadata: {
-    name: "MORE Earn",
-    description: "USDT Yield Vault on Kaia",
-    url: "https://more-earn.vercel.app",
-    icons: ["https://more-earn.vercel.app/brand/more.png"],
-  },
-});
 
 
 type EthereumProvider = {
