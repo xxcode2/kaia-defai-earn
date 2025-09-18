@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { createWeb3Modal } from '@web3modal/wagmi/react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -25,17 +25,20 @@ const wagmiConfig = createConfig({
 
 const queryClient = new QueryClient();
 
-if (typeof window !== 'undefined' && REOWN_PROJECT_ID) {
-  createWeb3Modal({
-    wagmiConfig,
-    projectId: REOWN_PROJECT_ID,
-    themeMode: 'dark', // or 'light' if preferred
-  });
-}
 export { wagmiConfig };
 
 // ── Provider wrapper untuk seluruh app ─────────────────────────────────
 export default function Web3ModalInit({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    if (REOWN_PROJECT_ID) {
+      createWeb3Modal({
+        wagmiConfig,
+        projectId: REOWN_PROJECT_ID,
+        themeMode: 'dark',
+      });
+    }
+  }, []);
+
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
