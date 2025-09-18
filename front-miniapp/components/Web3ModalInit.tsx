@@ -24,7 +24,6 @@ if (PROJECT_ID) {
     createWeb3Modal({
       wagmiConfig,
       projectId: PROJECT_ID,
-      chains: [kairos],
       metadata: {
         name: 'MORE Earn',
         description: 'USDT vault on Kaia (Mini Dapp)',
