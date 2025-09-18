@@ -50,7 +50,7 @@ export default function DappPortalProvider({ children }: PropsWithChildren) {
       const { kaiaKairos } = await import('@/lib/wagmiChains'); // define a chain object for 1001 if needed
       const { createWeb3Modal, defaultWagmiConfig } = await import('@web3modal/wagmi/react');
 
-      const chains = [kaiaKairos] as [typeof kaiaKairos, ...typeof kaiaKairos[]]; // ensure tuple type
+      const chains = [kaiaKairos] as const; // or your own chain array
       const wagmiConfig = defaultWagmiConfig({
         projectId: WC_PROJECT_ID,
         chains,
