@@ -7,19 +7,12 @@ import type { Metadata } from 'next';
 import './globals.css';
 import NextDynamic from 'next/dynamic';
 
-// Pakai dynamic import agar provider web3 hanya jalan di client (hindari SSR errors)
-const Web3ModalInit = NextDynamic<any>(
-  () => import('@/components/Web3ModalInit').then(m => m.default),
-  { ssr: false }
-);
-const DappPortalProvider = NextDynamic<any>(
-  () => import('@/components/DappPortalProvider').then(m => m.default),
-  { ssr: false }
-);
-const LiffProvider = NextDynamic<any>(
-  () => import('@/components/LiffProvider').then(m => m.default ?? m.LiffProvider),
-  { ssr: false }
-);
+// Semua provider client → dynamic import (ssr:false)
+const Web3ModalInit = NextDynamic(() => import('@/components/Web3ModalInit'), { ssr: false });
+// DappPortalProvider punya default export (sesuai file yang kamu kirim)
+const DappPortalProvider = NextDynamic(() => import('@/components/DappPortalProvider'), { ssr: false });
+// LiffProvider sekarang default export (sesuai file yang baru kita buat)
+const LiffProvider = NextDynamic(() => import('@/components/LiffProvider'), { ssr: false });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
 
