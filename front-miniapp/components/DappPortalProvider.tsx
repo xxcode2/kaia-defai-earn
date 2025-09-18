@@ -1,8 +1,16 @@
 'use client';
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, PropsWithChildren } from 'react';
-import { useAccount, useDisconnect } from 'wagmi'
-import { useWeb3Modal } from '@web3modal/wagmi/react'
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  PropsWithChildren
+} from 'react';
+import { useAccount, useDisconnect, useChainId } from 'wagmi';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
 import { initMini, getMiniDapp } from '@/lib/miniDapp';
 
 type Ctx = {
@@ -17,83 +25,44 @@ type Ctx = {
 const DappPortalContext = createContext<Ctx | null>(null);
 
 const DEFAULT_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001);
-const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID || '';
 
 export default function DappPortalProvider({ children }: PropsWithChildren) {
   const [address, setAddress] = useState<string | null>(null);
-  const [chainId, setChainId] = useState<number | null>(DEFAULT_CHAIN_ID);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInLiff, setIsInLiff] = useState(false);
 
-  const wagmiReadyRef = useRef(false);
-  const wagmiConnectRef = useRef<null | (() => Promise<string | null>)>(null);
-  const wagmiDisconnectRef = useRef<null | (() => Promise<void>)>(null);
+  // wagmi states (sudah disediakan oleh Web3ModalInit di layout)
+  const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
+  const { disconnect: wagmiDisconnect } = useDisconnect();
+  const currentChainId = useChainId();
+
+  const { open } = useWeb3Modal();
 
   // Detect LIFF (best-effort)
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    setIsInLiff(window.location.host.includes('liff.line.me'));
+    const ua = navigator.userAgent || '';
+    const inLiff = /Line/i.test(ua) || window.location.host.includes('liff.line.me');
+    setIsInLiff(inLiff);
   }, []);
 
-  // Init MiniDapp shim (for LIFF)
+  // Init MiniDapp SDK (tidak mengganggu web)
   useEffect(() => {
     initMini().catch(() => {});
   }, []);
 
-  // Lazy-init Web3Modal + Wagmi only in the browser
+  // Sinkronkan state address dengan wagmi
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      if (typeof window === 'undefined') return;
-      if (!WC_PROJECT_ID) return; // skip if not configured
+    if (wagmiConnected && wagmiAddress) {
+      const low = wagmiAddress.toLowerCase();
+      setAddress(low);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('moreearn.lastAddress', low);
+      }
+    }
+  }, [wagmiConnected, wagmiAddress]);
 
-      // Dynamically import to avoid SSR bundling errors
-
-      const { http, createConfig } = await import('wagmi');
-      const { kaiaKairos } = await import('@/lib/wagmiChains');
-      const { createWeb3Modal } = await import('@web3modal/wagmi/react');
-
-  const chains = [kaiaKairos] as const;
-
-      // Use default connectors (wagmi v2.x auto-detects WalletConnect if projectId is set)
-      const wagmiConfig = createConfig({
-        chains,
-        transports: {
-          [kaiaKairos.id]: http(kaiaKairos.rpcUrls.default.http[0])
-        },
-        ssr: false
-      });
-
-      createWeb3Modal({
-        wagmiConfig,
-        projectId: WC_PROJECT_ID,
-        enableAnalytics: false
-      });
-
-      // Simple helpers using Web3Modal’s open/close
-      wagmiConnectRef.current = async () => {
-        const modal = (window as any).web3modal;
-        if (!modal) return null;
-        const res = await modal.open(); // user picks wallet/provider
-        // After connect, get address via wagmi (dynamic import)
-        const { getAccount } = await import('wagmi/actions');
-        const acc = getAccount(wagmiConfig);
-        return acc?.address ?? null;
-      };
-
-      wagmiDisconnectRef.current = async () => {
-        const { disconnect } = await import('wagmi/actions');
-        await disconnect(wagmiConfig);
-      };
-
-      if (mounted) wagmiReadyRef.current = true;
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  // Restore address from localStorage
+  // Restore address jika ada (hanya sebagai tampilan awal)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const saved = localStorage.getItem('moreearn.lastAddress');
@@ -104,56 +73,51 @@ export default function DappPortalProvider({ children }: PropsWithChildren) {
     try {
       setIsConnecting(true);
 
-      // If we are in LIFF and MiniDapp supports connect
       if (isInLiff) {
+        // LIFF Mini Dapp connect
         const sdk = getMiniDapp();
         const res = await sdk.connectWallet();
         const addr = res?.address?.toLowerCase?.() || '';
         if (addr) {
           setAddress(addr);
-          localStorage.setItem('moreearn.lastAddress', addr);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('moreearn.lastAddress', addr);
+          }
           return;
         }
+        // fallback ke modal jika mini dapp gagal/ditolak
       }
 
-      // Fallback to Web3Modal on web
-      if (wagmiReadyRef.current && wagmiConnectRef.current) {
-        const addr = await wagmiConnectRef.current();
-        if (addr) {
-          const low = addr.toLowerCase();
-          setAddress(low);
-          localStorage.setItem('moreearn.lastAddress', low);
-        }
-        return;
-      }
-
-      alert('Wallet connect not ready. Check NEXT_PUBLIC_WC_PROJECT_ID and rebuild.');
+      // Browser: buka Web3Modal
+      await open();
+      // Alamat akan tersinkron lewat wagmi effect di atas
     } finally {
       setIsConnecting(false);
     }
-  }, [isInLiff]);
+  }, [isInLiff, open]);
 
   const disconnect = useCallback(async () => {
     try {
-      if (wagmiReadyRef.current && wagmiDisconnectRef.current) {
-        await wagmiDisconnectRef.current();
-      }
+      await wagmiDisconnect();
     } finally {
       setAddress(null);
       if (typeof window !== 'undefined') {
         localStorage.removeItem('moreearn.lastAddress');
       }
     }
-  }, []);
+  }, [wagmiDisconnect]);
 
-  const ctx = useMemo<Ctx>(() => ({
-    address,
-    chainId,
-    isConnecting,
-    connect,
-    disconnect,
-    isInLiff
-  }), [address, chainId, isConnecting, connect, disconnect, isInLiff]);
+  const ctx = useMemo<Ctx>(
+    () => ({
+      address,
+      chainId: currentChainId ?? DEFAULT_CHAIN_ID,
+      isConnecting,
+      connect,
+      disconnect,
+      isInLiff
+    }),
+    [address, currentChainId, isConnecting, connect, disconnect, isInLiff]
+  );
 
   return (
     <DappPortalContext.Provider value={ctx}>

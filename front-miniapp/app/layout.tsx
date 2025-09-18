@@ -5,11 +5,21 @@ export const fetchCache = 'force-no-store';
 
 import type { Metadata } from 'next';
 import './globals.css';
+import NextDynamic from 'next/dynamic';
 
-import Web3ModalInit from '@/components/Web3ModalInit';           // ⬅️ PROVIDER wagmi + Web3Modal
-import { HybridWalletProvider } from '@/components/HybridWalletContext'; // ⬅️ Switch LIFF vs Browser
-import DappPortalProvider from '@/components/DappPortalProvider';  // (client) aman asalkan tak panggil useWeb3Modal
-import { LiffProvider } from '@/components/LiffProvider';          // (client) jangan panggil useWeb3Modal di sini
+// Pakai dynamic import agar provider web3 hanya jalan di client (hindari SSR errors)
+const Web3ModalInit = NextDynamic<any>(
+  () => import('@/components/Web3ModalInit').then(m => m.default),
+  { ssr: false }
+);
+const DappPortalProvider = NextDynamic<any>(
+  () => import('@/components/DappPortalProvider').then(m => m.default),
+  { ssr: false }
+);
+const LiffProvider = NextDynamic<any>(
+  () => import('@/components/LiffProvider').then(m => m.default ?? m.LiffProvider),
+  { ssr: false }
+);
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
 
@@ -35,19 +45,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        {/* Urutan penting:
-            1) (opsional) provider lain
-            2) Web3ModalInit -> memasang WagmiProvider + inisialisasi Web3Modal
-            3) HybridWalletProvider -> memilih LIFF (Mini Dapp SDK) atau Browser (wagmi) */}
-        <DappPortalProvider>
-          <LiffProvider>
-            <Web3ModalInit>
-              <HybridWalletProvider>
-                {children}
-              </HybridWalletProvider>
-            </Web3ModalInit>
-          </LiffProvider>
-        </DappPortalProvider>
+        {/* Urutan penting: Web3ModalInit (WagmiProvider + createWeb3Modal) */}
+        <LiffProvider>
+          <Web3ModalInit>
+            <DappPortalProvider>
+              {children}
+            </DappPortalProvider>
+          </Web3ModalInit>
+        </LiffProvider>
       </body>
     </html>
   );
