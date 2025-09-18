@@ -3,11 +3,11 @@ import { type Chain } from 'wagmi/chains'
 
 export const kairos: Chain = {
   id: 1001,
-  name: 'Kairos',
-  nativeCurrency: { name: 'Kaia', symbol: 'KAI', decimals: 18 },
+  name: 'Kaia Kairos',
+  nativeCurrency: { name: 'KAIA', symbol: 'KAIA', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://public-en-kairos.node.kaia.io'] },
-    public: { http: ['https://public-en-kairos.node.kaia.io'] },
+   default: { http: [process.env.NEXT_PUBLIC_RPC || 'https://public-en-kairos.node.kaia.io'] },
+    public: { http: [process.env.NEXT_PUBLIC_RPC || 'https://public-en-kairos.node.kaia.io'] },
   },
   blockExplorers: {
     default: { name: 'Scope', url: 'https://kairos.scope.kaia.io' }

@@ -1,11 +1,9 @@
-// app/layout.tsx
 import type { Metadata } from 'next';
 import './globals.css';
 
-import { LiffProvider } from '@/components/LiffProvider';         // <- kalau kamu punya
-import Web3ModalInit from '@/components/Web3ModalInit';           // <- default export
+import { LiffProvider } from '@/components/LiffProvider';       // opsional
+import Web3ModalInit from '@/components/Web3ModalInit';         // default export
 import DappPortalProvider from '@/components/DappPortalProvider';
-
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
@@ -38,12 +36,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        {/* Urutan penting: LIFF (opsional) -> Web3ModalInit (Wagmi/QueryClient) -> children */}
-      <DappPortalProvider>
-        <LiffProvider>
-          <Web3ModalInit>{children}</Web3ModalInit>
-        </LiffProvider>
-          </DappPortalProvider>
+        <DappPortalProvider>
+          <LiffProvider>
+            <Web3ModalInit>{children}</Web3ModalInit>
+          </LiffProvider>
+        </DappPortalProvider>
       </body>
     </html>
   );
