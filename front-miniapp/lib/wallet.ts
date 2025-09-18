@@ -1,6 +1,7 @@
 // lib/wallet.ts
 'use client';
 
+
 /**
  * Util wallet berbasis wagmi v2.
  * - Gunakan untuk BACA state wallet (alamat, status, chain) dan DISCONNECT.

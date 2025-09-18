@@ -4,7 +4,9 @@ import React from 'react';
 import { createWeb3Modal } from '@web3modal/wagmi/react';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { defaultWagmiConfig } from '@web3modal/wagmi/react/config'
 import { kairos } from '@/lib/chains';
+
 
 // ── ENV ─────────────────────────────────────────────────────────────────
 const REOWN_PROJECT_ID =
@@ -30,6 +32,7 @@ if (typeof window !== 'undefined' && REOWN_PROJECT_ID) {
     themeMode: 'dark', // or 'light' if preferred
   });
 }
+export { wagmiConfig };
 
 // ── Provider wrapper untuk seluruh app ─────────────────────────────────
 export default function Web3ModalInit({ children }: { children: React.ReactNode }) {
