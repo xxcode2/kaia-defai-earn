@@ -11,7 +11,7 @@ const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim()
 const ENV_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001)
 
 const CHAIN = ENV_CHAIN_ID === 8217 ? kaia : kairos
-const CHAINS = [CHAIN]
+const CHAINS = [CHAIN] as const
 
 const queryClient = new QueryClient()
 
@@ -34,7 +34,6 @@ export default function Web3Providers({ children }: PropsWithChildren) {
     createWeb3Modal({
       wagmiConfig,
       projectId: WC_PROJECT_ID,
-      chains: CHAINS,
       // Optional UI tweaks
       enableAnalytics: false,
       themeMode: 'light',
