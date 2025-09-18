@@ -1,5 +1,5 @@
 // lib/chains.ts
-import { type Chain } from 'wagmi'
+import { type Chain } from 'wagmi/chains'
 
 export const kairos: Chain = {
   id: 1001,
