@@ -7,15 +7,19 @@ import { useAccount } from 'wagmi';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
 
 export const dynamic = 'force-dynamic';
+
 export default function LiffTestPage() {
   const { address } = useDappPortal();
   const { isConnected } = useAccount();
-  const { open } = useWeb3Modal(); // ✅ ambil fungsi open dari hook
   const [ready, setReady] = useState(false);
+  const [isClient, setIsClient] = useState(false);
 
   useEffect(() => {
     setReady(true);
+    setIsClient(true);
   }, []);
+
+  const modal = isClient ? useWeb3Modal() : null;
 
   return (
     <main className="p-4 space-y-4">
@@ -23,7 +27,7 @@ export default function LiffTestPage() {
 
       {/* Tombol connect langsung */}
       <button
-        onClick={() => open()}
+        onClick={() => modal?.open()}
         className="px-4 py-2 bg-blue-600 text-white rounded"
       >
         Connect
