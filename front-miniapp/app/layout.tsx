@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import './globals.css';
 
-import { LiffProvider } from '@/components/LiffProvider';       // opsional
-import Web3ModalInit from '@/components/Web3ModalInit';         // default export
+import { LiffProvider } from '@/components/LiffProvider';       // jika kamu pakai
+import Web3ModalInit from '@/components/Web3ModalInit';
 import DappPortalProvider from '@/components/DappPortalProvider';
 
 const SITE_URL =

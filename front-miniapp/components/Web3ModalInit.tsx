@@ -6,13 +6,11 @@ import { WagmiProvider, createConfig, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { kairos } from '@/lib/chains';
 
-// ── ENV ─────────────────────────────────────────────
 const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
 if (typeof window !== 'undefined' && !WC_PROJECT_ID) {
   console.warn('NEXT_PUBLIC_WC_PROJECT_ID is empty. WalletConnect may not work.');
 }
 
-// ── Wagmi Config ───────────────────────────────────
 const wagmiConfig = createConfig({
   chains: [kairos],
   transports: {
@@ -24,7 +22,6 @@ const queryClient = new QueryClient();
 
 export { wagmiConfig };
 
-// ── Provider wrapper untuk seluruh app ─────────────
 export default function Web3ModalInit({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (WC_PROJECT_ID && !(window as any).__W3M_INITIALIZED__) {
