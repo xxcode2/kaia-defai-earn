@@ -1,12 +1,9 @@
 'use client';
 
-'use client';
-
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { isLiffEnv } from '@/lib/env';
 import { useAccount, useDisconnect } from 'wagmi';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
-
+import { isLiffEnv } from '@/lib/env';
 
 type HybridWalletCtx = {
   address?: string;
@@ -14,7 +11,7 @@ type HybridWalletCtx = {
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   signTx: (to: string, amount: string) => Promise<any>;
-  provider?: any;
+  provider?: any; // LIFF provider saat in-app
 };
 
 const HybridWalletContext = createContext<HybridWalletCtx>({
@@ -42,40 +39,37 @@ export function HybridWalletProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLiff) return;
-
     (async () => {
-      // ⬇️ Lazy import SDK Kaia (tetap butuh paket terpasang)
+      // load Kaia Mini Dapp SDK hanya di LIFF
       const [{ default: DappPortalSDK }, { Web3Provider }] = await Promise.all([
         import('@linenext/dapp-portal-sdk'),
         import('@kaiachain/ethers-ext'),
       ]);
-
       const sdk = await DappPortalSDK.init({
         clientId: process.env.NEXT_PUBLIC_MINIDAPP_CLIENT_ID!,
         chainId: process.env.NEXT_PUBLIC_CHAIN_ID || '1001',
       });
-
       const p = new Web3Provider(sdk.getWalletProvider());
       setProvider(p);
-      const accounts = await p.send('kaia_requestAccounts', []);
-      setAddress(accounts[0]);
+      const acc = await p.send('kaia_requestAccounts', []);
+      setAddress(acc?.[0]);
     })();
   }, [isLiff]);
 
+  // LIFF context
   const liffCtx: HybridWalletCtx = {
     address,
     isConnected: !!address,
     provider,
     connect: async () => {
       const acc = await provider.send('kaia_requestAccounts', []);
-      setAddress(acc[0]);
+      setAddress(acc?.[0]);
     },
     disconnect: async () => {
       setAddress(undefined);
     },
     signTx: async (to: string, amount: string) => {
       if (!provider || !address) return null;
-      // ⬇️ Lazy import helper Kaia
       const { TxType, parseKaia } = await import('@kaiachain/js-ext-core');
       const tx = {
         typeInt: TxType.FeeDelegatedValueTransfer,
@@ -88,22 +82,21 @@ export function HybridWalletProvider({ children }: { children: ReactNode }) {
     },
   };
 
+  // Browser context (wagmi)
   const browserCtx: HybridWalletCtx = {
     address: wagmiAddr,
     isConnected: wagmiConnected,
     provider: null,
-    connect: async () => {
-      await open(); // Web3Modal
-    },
-    disconnect: async () => {
-      await wagmiDisconnect();
-    },
-    signTx: async () => null, // implement nanti pakai signer wagmi/ethers kalau perlu
+    connect: async () => { await open(); },
+    disconnect: async () => { await wagmiDisconnect(); },
+    signTx: async () => null, // implement nanti pakai signer kalau perlu
   };
 
-  const ctx = isLiff ? liffCtx : browserCtx;
-
-  return <HybridWalletContext.Provider value={ctx}>{children}</HybridWalletContext.Provider>;
+  return (
+    <HybridWalletContext.Provider value={isLiff ? liffCtx : browserCtx}>
+      {children}
+    </HybridWalletContext.Provider>
+  );
 }
 
 export function useHybridWallet() {
