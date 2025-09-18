@@ -2,8 +2,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-import { LiffProvider } from "@/components/LiffProvider";              
-import { DappPortalProvider } from "@/components/DappPortalProvider";  
+import { LiffProvider } from "@/components/LiffProvider";      // LiffProvider is a *named* export
+import DappPortalProvider from "@/components/DappPortalProvider"; // DappPortalProvider is the *default* export
 
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || "https://more-earn.vercel.app";
@@ -38,9 +38,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className="min-h-screen bg-white text-slate-900">
-        {/* LIFF dulu, lalu DappPortal */}
+    <html lang="en">
+      <body>
         <LiffProvider>
           <DappPortalProvider>{children}</DappPortalProvider>
         </LiffProvider>
