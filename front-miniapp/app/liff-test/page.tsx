@@ -9,6 +9,7 @@ import { useWeb3Modal } from '@web3modal/wagmi/react';
 export default function LiffTestPage() {
   const { address } = useDappPortal();
   const { isConnected } = useAccount();
+  const { open } = useWeb3Modal(); // ✅ ambil fungsi open dari hook
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -19,13 +20,13 @@ export default function LiffTestPage() {
     <main className="p-4 space-y-4">
       <h1 className="text-xl font-semibold">LIFF Test</h1>
 
- return (
-    <main className="p-4 space-y-4">
-      <button onClick={() => open()}>Connect</button>
-      <div>Connected: {isConnected ? 'yes' : 'no'}</div>
-      <div>Address: {address ?? '—'}</div>
-    </main>
-  );
+      {/* Tombol connect langsung */}
+      <button
+        onClick={() => open()}
+        className="px-4 py-2 bg-blue-600 text-white rounded"
+      >
+        Connect
+      </button>
 
       {/* Wallet connect/disconnect */}
       <ConnectWalletButton />
@@ -33,6 +34,7 @@ export default function LiffTestPage() {
       {/* Status info */}
       <div className="text-sm text-gray-600 space-y-1">
         <div>Status: {ready ? "✅ Client Ready" : "⏳ Loading…"}</div>
+        <div>Connected: {isConnected ? "✅ Yes" : "❌ No"}</div>
         <div>Address: {address ?? "—"}</div>
       </div>
     </main>
