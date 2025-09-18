@@ -1,25 +1,8 @@
 'use client';
 
-import React, {
-  createContext,
-  useContext,
-  useMemo,
-  PropsWithChildren
-} from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, PropsWithChildren } from 'react';
+import { initMini, getMiniDapp } from '@/lib/miniDapp';
 
-import {
-  WagmiConfig,
-  createConfig,
-  http,
-  useAccount,
-  useDisconnect
-} from 'wagmi';
-import { injected, walletConnect } from 'wagmi/connectors';
-import { kaiaTestnet } from 'wagmi/chains';
-
-import { createWeb3Modal, useWeb3Modal } from '@web3modal/wagmi/react';
-
-// ============ Context types ============
 type Ctx = {
   address: string | null;
   chainId: number | null;
@@ -31,114 +14,154 @@ type Ctx = {
 
 const DappPortalContext = createContext<Ctx | null>(null);
 
-export function useDappPortal(): Ctx {
-  const ctx = useContext(DappPortalContext);
-  if (!ctx) throw new Error('useDappPortal must be used within <DappPortalProvider>');
-  return ctx;
-}
+const DEFAULT_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001);
+const WC_PROJECT_ID = process.env.NEXT_PUBLIC_WC_PROJECT_ID || '';
 
-// ============ Helpers ============
-const PROJECT_ID = (process.env.NEXT_PUBLIC_PROJECT_ID || '').trim();
-const RPC_URL = (process.env.NEXT_PUBLIC_RPC || 'https://public-en-kairos.node.kaia.io').trim();
-const CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001);
+export default function DappPortalProvider({ children }: PropsWithChildren) {
+  const [address, setAddress] = useState<string | null>(null);
+  const [chainId, setChainId] = useState<number | null>(DEFAULT_CHAIN_ID);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [isInLiff, setIsInLiff] = useState(false);
 
-// Wagmi config (WalletConnect + Injected)
-const wagmiConfig = createConfig({
-  chains: [kaiaTestnet],
-  transports: {
-    [kaiaTestnet.id]: http(RPC_URL)
-  },
-  connectors: [
-    injected(),
-    walletConnect({
-      projectId: PROJECT_ID,
-      showQrModal: false, // kita pakai modal dari web3modal
-      relayUrl: 'wss://relay.walletconnect.com'
-    })
-  ]
-});
+  const wagmiReadyRef = useRef(false);
+  const wagmiConnectRef = useRef<null | (() => Promise<string | null>)>(null);
+  const wagmiDisconnectRef = useRef<null | (() => Promise<void>)>(null);
 
-// Init Web3Modal sekali di client
-function useInitW3M() {
-  React.useEffect(() => {
-    if (!PROJECT_ID) {
-      // Fail fast biar developer tahu kenapa modal gak muncul
-      console.error('Missing NEXT_PUBLIC_PROJECT_ID for WalletConnect/Reown');
-      return;
-    }
-    createWeb3Modal({
-      wagmiConfig,
-      projectId: PROJECT_ID,
-      themeMode: 'dark',
-      themeVariables: {
-        '--w3m-accent-color': '#16a34a',
-        '--w3m-background-color': '#0B0F13'
-      }
-    });
-  }, []);
-}
-
-// Simple LIFF detector (cukup)
-function useIsLiff(): boolean {
-  const [isLiff, setIsLiff] = React.useState(false);
-  React.useEffect(() => {
+  // Detect LIFF (best-effort)
+  useEffect(() => {
     if (typeof window === 'undefined') return;
-    setIsLiff(window.location.host.includes('liff.line.me'));
+    setIsInLiff(window.location.host.includes('liff.line.me'));
   }, []);
-  return isLiff;
-}
 
-// Inner provider yang memakai hooks wagmi + web3modal
-function Inner({ children }: PropsWithChildren) {
-  useInitW3M();
-  const isInLiff = useIsLiff();
+  // Init MiniDapp shim (for LIFF)
+  useEffect(() => {
+    initMini().catch(() => {});
+  }, []);
 
-  const { address, chain, isConnecting, status } = useAccount();
-  const { disconnect: wagmiDisconnect } = useDisconnect();
-  const { open } = useWeb3Modal();
+  // Lazy-init Web3Modal + Wagmi only in the browser
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (typeof window === 'undefined') return;
+      if (!WC_PROJECT_ID) return; // skip if not configured
 
-  const connect = React.useCallback(async () => {
-    // Tampilkan modal wallet (Bitget akan muncul jika domain Reown sudah diverifikasi)
-    await open();
-  }, [open]);
+      // Dynamically import to avoid SSR bundling errors
+      const { http, createConfig } = await import('wagmi');
+      const { kaiaKairos } = await import('@/lib/wagmiChains'); // define a chain object for 1001 if needed
+      const { createWeb3Modal, defaultWagmiConfig } = await import('@web3modal/wagmi/react');
 
-  const disconnect = React.useCallback(async () => {
+      const chains = [kaiaKairos] as [typeof kaiaKairos, ...typeof kaiaKairos[]]; // ensure tuple type
+      const wagmiConfig = defaultWagmiConfig({
+        projectId: WC_PROJECT_ID,
+        chains,
+        metadata: {
+          name: 'MORE Earn',
+          description: 'USDT yield on Kaia',
+          url: window.location.origin,
+          icons: ['https://more-earn.vercel.app/brand/more.png']
+        }
+      });
+
+      createWeb3Modal({
+        wagmiConfig,
+        projectId: WC_PROJECT_ID,
+        enableAnalytics: false
+      });
+
+      // Simple helpers using Web3Modal’s open/close
+      wagmiConnectRef.current = async () => {
+        const modal = (window as any).web3modal;
+        if (!modal) return null;
+        const res = await modal.open(); // user picks wallet/provider
+        // After connect, get address via wagmi (dynamic import)
+        const { getAccount } = await import('wagmi/actions');
+        const acc = getAccount(wagmiConfig);
+        return acc?.address ?? null;
+      };
+
+      wagmiDisconnectRef.current = async () => {
+        const { disconnect } = await import('wagmi/actions');
+        await disconnect(wagmiConfig);
+      };
+
+      if (mounted) wagmiReadyRef.current = true;
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Restore address from localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem('moreearn.lastAddress');
+    if (saved) setAddress(saved);
+  }, []);
+
+  const connect = useCallback(async () => {
     try {
-      await wagmiDisconnect();
-      // bersihkan state wagmi kalau masih tersisa
-      localStorage.removeItem('wagmi.store');
-    } catch {}
-  }, [wagmiDisconnect]);
+      setIsConnecting(true);
 
-  const value = useMemo<Ctx>(
-    () => ({
-      address: address ?? null,
-      chainId: chain?.id ?? CHAIN_ID ?? null,
-      isConnecting: isConnecting || status === 'connecting',
-      connect,
-      disconnect,
-      isInLiff
-    }),
-    [address, chain?.id, isConnecting, status, connect, disconnect, isInLiff]
-  );
+      // If we are in LIFF and MiniDapp supports connect
+      if (isInLiff) {
+        const sdk = getMiniDapp();
+        const res = await sdk.connectWallet();
+        const addr = res?.address?.toLowerCase?.() || '';
+        if (addr) {
+          setAddress(addr);
+          localStorage.setItem('moreearn.lastAddress', addr);
+          return;
+        }
+      }
+
+      // Fallback to Web3Modal on web
+      if (wagmiReadyRef.current && wagmiConnectRef.current) {
+        const addr = await wagmiConnectRef.current();
+        if (addr) {
+          const low = addr.toLowerCase();
+          setAddress(low);
+          localStorage.setItem('moreearn.lastAddress', low);
+        }
+        return;
+      }
+
+      alert('Wallet connect not ready. Check NEXT_PUBLIC_WC_PROJECT_ID and rebuild.');
+    } finally {
+      setIsConnecting(false);
+    }
+  }, [isInLiff]);
+
+  const disconnect = useCallback(async () => {
+    try {
+      if (wagmiReadyRef.current && wagmiDisconnectRef.current) {
+        await wagmiDisconnectRef.current();
+      }
+    } finally {
+      setAddress(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('moreearn.lastAddress');
+      }
+    }
+  }, []);
+
+  const ctx = useMemo<Ctx>(() => ({
+    address,
+    chainId,
+    isConnecting,
+    connect,
+    disconnect,
+    isInLiff
+  }), [address, chainId, isConnecting, connect, disconnect, isInLiff]);
 
   return (
-    <DappPortalContext.Provider value={value}>
+    <DappPortalContext.Provider value={ctx}>
       {children}
     </DappPortalContext.Provider>
   );
 }
 
-// Export utama: membungkus Wagmi + Context di atasnya
-export default function DappPortalProvider({ children }: PropsWithChildren) {
-  if (!PROJECT_ID) {
-    // Jangan crash UI production, tapi log keras untuk dev
-    console.warn('⚠️ NEXT_PUBLIC_PROJECT_ID tidak terpasang — WalletConnect tidak akan berfungsi');
-  }
-
-  return (
-    <WagmiConfig config={wagmiConfig}>
-      <Inner>{children}</Inner>
-    </WagmiConfig>
-  );
+export function useDappPortal(): Ctx {
+  const v = useContext(DappPortalContext);
+  if (!v) throw new Error('useDappPortal must be used within <DappPortalProvider>');
+  return v;
 }
