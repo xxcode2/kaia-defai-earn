@@ -1,11 +1,12 @@
 'use client';
 
+'use client';
+
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { isLiffEnv } from '@/lib/env';
-import DappPortalSDK from '@linenext/dapp-portal-sdk';
-import { Web3Provider } from '@kaiachain/ethers-ext';
-import { TxType, parseKaia } from '@kaiachain/js-ext-core';
-import { useAccount, useDisconnect, useWeb3Modal } from 'wagmi';
+import { useAccount, useDisconnect } from 'wagmi';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
+
 
 type HybridWalletCtx = {
   address?: string;
@@ -30,7 +31,7 @@ export function HybridWalletProvider({ children }: { children: ReactNode }) {
   const [provider, setProvider] = useState<any>(null);
   const [address, setAddress] = useState<string>();
 
-  // ---- Browser (wagmi/web3modal) ----
+  // Browser (wagmi/web3modal)
   const { address: wagmiAddr, isConnected: wagmiConnected } = useAccount();
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const { open } = useWeb3Modal();
@@ -40,21 +41,27 @@ export function HybridWalletProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (isLiff) {
-      (async () => {
-        const sdk = await DappPortalSDK.init({
-          clientId: process.env.NEXT_PUBLIC_MINIDAPP_CLIENT_ID!,
-          chainId: process.env.NEXT_PUBLIC_CHAIN_ID || '1001',
-        });
-        const p = new Web3Provider(sdk.getWalletProvider());
-        setProvider(p);
-        const accounts = await p.send('kaia_requestAccounts', []);
-        setAddress(accounts[0]);
-      })();
-    }
+    if (!isLiff) return;
+
+    (async () => {
+      // ⬇️ Lazy import SDK Kaia (tetap butuh paket terpasang)
+      const [{ default: DappPortalSDK }, { Web3Provider }] = await Promise.all([
+        import('@linenext/dapp-portal-sdk'),
+        import('@kaiachain/ethers-ext'),
+      ]);
+
+      const sdk = await DappPortalSDK.init({
+        clientId: process.env.NEXT_PUBLIC_MINIDAPP_CLIENT_ID!,
+        chainId: process.env.NEXT_PUBLIC_CHAIN_ID || '1001',
+      });
+
+      const p = new Web3Provider(sdk.getWalletProvider());
+      setProvider(p);
+      const accounts = await p.send('kaia_requestAccounts', []);
+      setAddress(accounts[0]);
+    })();
   }, [isLiff]);
 
-  // --------- LIFF (Mini Dapp) mode ---------
   const liffCtx: HybridWalletCtx = {
     address,
     isConnected: !!address,
@@ -68,6 +75,8 @@ export function HybridWalletProvider({ children }: { children: ReactNode }) {
     },
     signTx: async (to: string, amount: string) => {
       if (!provider || !address) return null;
+      // ⬇️ Lazy import helper Kaia
+      const { TxType, parseKaia } = await import('@kaiachain/js-ext-core');
       const tx = {
         typeInt: TxType.FeeDelegatedValueTransfer,
         from: address,
@@ -79,22 +88,17 @@ export function HybridWalletProvider({ children }: { children: ReactNode }) {
     },
   };
 
-  // --------- Browser (Web3Modal/wagmi) mode ---------
   const browserCtx: HybridWalletCtx = {
     address: wagmiAddr,
     isConnected: wagmiConnected,
     provider: null,
     connect: async () => {
-      await open(); // buka Web3Modal
+      await open(); // Web3Modal
     },
     disconnect: async () => {
       await wagmiDisconnect();
     },
-    signTx: async (_to: string, _amount: string) => {
-      // Untuk browser pakai ethers/wagmi signer biasanya
-      // Dummy: return null
-      return null;
-    },
+    signTx: async () => null, // implement nanti pakai signer wagmi/ethers kalau perlu
   };
 
   const ctx = isLiff ? liffCtx : browserCtx;
