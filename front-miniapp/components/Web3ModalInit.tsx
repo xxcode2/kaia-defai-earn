@@ -23,13 +23,11 @@ const wagmiConfig = createConfig({
 
 const queryClient = new QueryClient();
 
-// ── Web3Modal (Reown) init di client saja ──────────────────────────────
 if (typeof window !== 'undefined' && REOWN_PROJECT_ID) {
   createWeb3Modal({
     wagmiConfig,
     projectId: REOWN_PROJECT_ID,
-    chains: [kairos],
-    // (opsional) themeMode: 'light' | 'dark'
+    themeMode: 'dark', // or 'light' if preferred
   });
 }
 
