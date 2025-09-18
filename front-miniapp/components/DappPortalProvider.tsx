@@ -1,6 +1,8 @@
 'use client';
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, PropsWithChildren } from 'react';
+import { useAccount, useDisconnect } from 'wagmi'
+import { useWeb3Modal } from '@web3modal/wagmi/react'
 import { initMini, getMiniDapp } from '@/lib/miniDapp';
 
 type Ctx = {
@@ -46,20 +48,20 @@ export default function DappPortalProvider({ children }: PropsWithChildren) {
       if (!WC_PROJECT_ID) return; // skip if not configured
 
       // Dynamically import to avoid SSR bundling errors
-      const { http, createConfig } = await import('wagmi');
-      const { kaiaKairos } = await import('@/lib/wagmiChains'); // define a chain object for 1001 if needed
-      const { createWeb3Modal, defaultWagmiConfig } = await import('@web3modal/wagmi/react');
 
-      const chains = [kaiaKairos] as const; // or your own chain array
-      const wagmiConfig = defaultWagmiConfig({
-        projectId: WC_PROJECT_ID,
+      const { http, createConfig } = await import('wagmi');
+      const { kaiaKairos } = await import('@/lib/wagmiChains');
+      const { createWeb3Modal } = await import('@web3modal/wagmi/react');
+
+  const chains = [kaiaKairos] as const;
+
+      // Use default connectors (wagmi v2.x auto-detects WalletConnect if projectId is set)
+      const wagmiConfig = createConfig({
         chains,
-        metadata: {
-          name: 'MORE Earn',
-          description: 'USDT yield on Kaia',
-          url: window.location.origin,
-          icons: ['https://more-earn.vercel.app/brand/more.png']
-        }
+        transports: {
+          [kaiaKairos.id]: http(kaiaKairos.rpcUrls.default.http[0])
+        },
+        ssr: false
       });
 
       createWeb3Modal({
