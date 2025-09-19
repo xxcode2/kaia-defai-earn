@@ -35,16 +35,21 @@ let w3mInitialized = false;
 export default function Web3ModalInit({ children }: { children: React.ReactNode }) {
   if (typeof window !== 'undefined' && !w3mInitialized) {
     if (WC_PROJECT_ID) {
-      createWeb3Modal({
+      // ⬇️ simpan instance modal ke window agar bisa dipanggil di LIFF
+      const modal = createWeb3Modal({
         wagmiConfig,
         projectId: WC_PROJECT_ID,
-        themeMode: 'dark'
+        themeMode: 'dark',
+        // opsional: bikin WalletConnect nongol jelas
+        // enableOnramp: false,
       });
+      (window as any).__W3M__ = modal;
+      (window as any).__W3M_OPEN__ = (opts?: any) => modal.open(opts);
+      (window as any).__W3M_CLOSE__ = () => modal.close();
     } else {
       console.warn('NEXT_PUBLIC_WC_PROJECT_ID is empty. WalletConnect may not work.');
     }
     w3mInitialized = true;
-    (window as any).web3modal = (window as any).web3modal ?? undefined; // keep ref if needed
   }
 
   return (

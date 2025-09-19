@@ -1,3 +1,4 @@
+// components/ConnectWalletButton.tsx
 'use client';
 
 import { useDappPortal } from '@/components/DappPortalProvider';
@@ -22,12 +23,10 @@ export default function ConnectWalletButton() {
         >
           {isConnecting ? 'Connecting…' : 'Connect Wallet'}
         </button>
-
         {inLiff && (
           <button
             onClick={() => openExternalBrowser()}
             className="px-3 py-2 rounded-xl border border-gray-300 hover:bg-gray-50"
-            title="Buka di browser eksternal (Chrome/Safari) bila WalletConnect tidak jalan di LIFF"
           >
             Open in browser
           </button>
@@ -44,7 +43,6 @@ export default function ConnectWalletButton() {
       <button
         onClick={disconnect}
         className="px-3 py-2 rounded-xl border border-gray-300 hover:bg-gray-50"
-        title="Disconnect (clear session)"
       >
         Disconnect
       </button>

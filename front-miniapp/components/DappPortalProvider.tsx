@@ -59,28 +59,36 @@ export default function DappPortalProvider({ children }: PropsWithChildren) {
     if (saved) setAddress(saved);
   }, []);
 
-  const connect = useCallback(async () => {
-    try {
-      setIsConnecting(true);
+ const connect = useCallback(async () => {
+  try {
+    setIsConnecting(true);
 
-      // Fallback universal: buka WalletConnect modal
-      // (bekerja di browser; di LIFF kadang deep-link diblok terutama iOS)
+     const openModal = (window as any).__W3M_OPEN__ as undefined | ((opts?: any) => Promise<void>);
+    if (typeof openModal === 'function') {
+      await openModal({ view: 'Connect' });
+    } else {
+      // fallback kalau entah kenapa modal belum attached
+      const { open } = await import('@web3modal/wagmi/react').then(m => ({ open: m.useWeb3Modal().open }));
       await open();
-
-      // Jika di LIFF & address tidak berubah (deep link gagal), arahkan ke external browser
-      setTimeout(() => {
-        const stillEmpty = !localStorage.getItem('moreearn.lastAddress');
-        if (inLiff && stillEmpty) {
-          const wantExternal = window.confirm(
-            'WalletConnect mungkin diblok oleh WebView LINE.\nBuka di browser eksternal agar bisa connect?'
-          );
-          if (wantExternal) openExternalBrowser();
-        }
-      }, 2000);
-    } finally {
-      setIsConnecting(false);
     }
-  }, [open, inLiff]);
+
+ // Jika LIFF sering blok deep link (terutama iOS), bantu user
+    setTimeout(() => {
+      // kalau address belum keisi setelah beberapa detik → tawarkan buka di browser eksternal
+      const saved = localStorage.getItem('moreearn.lastAddress');
+      if (inLiff && !saved) {
+        const go = window.confirm(
+          'WalletConnect mungkin diblok oleh WebView LINE.\nBuka di browser eksternal (Chrome/Safari) agar bisa connect?'
+        );
+        if (go) {
+          import('@/lib/liffHelpers').then(({ openExternalBrowser }) => openExternalBrowser());
+        }
+      }
+    }, 2000);
+  } finally {
+    setIsConnecting(false);
+  }
+}, [inLiff]);
 
   const disconnect = useCallback(async () => {
     try {
