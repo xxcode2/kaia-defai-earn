@@ -1,7 +1,7 @@
 // lib/w3m.ts
 'use client';
 
-import { isInLiff, openExternalBrowser } from './liffHelpers';
+import { isInLiff, openExternalBrowser } from '@/lib/liffHelpers';
 
 export async function openWalletModal() {
   const open = (window as any).__W3M_OPEN__;
@@ -10,8 +10,6 @@ export async function openWalletModal() {
   } else {
     console.warn('Web3Modal belum siap di window.__W3M_OPEN__');
   }
-
-  // Jika di LIFF & belum tersambung setelah beberapa detik, tawarkan buka external browser
   setTimeout(() => {
     const hasAddr = !!localStorage.getItem('moreearn.lastAddress');
     if (isInLiff() && !hasAddr) {

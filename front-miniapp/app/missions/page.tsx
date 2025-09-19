@@ -1,38 +1,47 @@
 // app/missions/page.tsx
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import type { MissionStatus } from "@/lib/missions";
-import { getMissionStatus } from "@/lib/missions";
+import { useEffect, useState } from 'react';
+import type { MissionStatus } from '@/lib/missions';
+import { getMissionStatus } from '@/lib/missions';
+import { openWalletModal } from '@/lib/w3m'; // <- modal WalletConnect kita
 
 // util kecil buat shorten address
 function short(addr?: string) {
-  if (!addr) return "—";
+  if (!addr) return '—';
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
+// ambil/simpan address standar app
+const LS_KEY = 'moreearn.lastAddress';
+
 export default function MissionsPage() {
-  const [address, setAddress] = useState<string>("");
+  const [address, setAddress] = useState<string>('');
   const [status, setStatus] = useState<MissionStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // connect wallet (sederhana)
+  /** Tampilkan modal WalletConnect & update address dari localStorage */
   async function connect() {
     try {
-      // @ts-ignore
-      const eth = window?.ethereum;
-      if (!eth) {
-        alert("Wallet belum terpasang.");
-        return;
+      await openWalletModal();
+
+      // coba baca address yang diset saat connect (oleh provider global)
+      // coba langsung…
+      let addr = localStorage.getItem(LS_KEY) || '';
+
+      // …kalau belum ada, tunggu sebentar (kasus LIFF/webview kadang delay)
+      if (!addr) {
+        await new Promise((r) => setTimeout(r, 1200));
+        addr = localStorage.getItem(LS_KEY) || '';
       }
-      await eth.request({ method: "eth_requestAccounts" });
-      const accounts = await eth.request({ method: "eth_accounts" });
-      setAddress((accounts?.[0] as string) || "");
+
+      if (addr) setAddress(addr);
     } catch (e: any) {
-      alert(e?.message || "Connect failed");
+      alert(e?.message || 'Connect failed');
     }
   }
 
+  /** Muat status missions untuk address saat ini */
   async function load() {
     if (!address) {
       setStatus(null);
@@ -41,42 +50,35 @@ export default function MissionsPage() {
     setLoading(true);
     try {
       const res = await getMissionStatus(address);
-      if (res) setStatus(res);
-      else setStatus(null);
+      setStatus(res ?? null);
     } finally {
       setLoading(false);
     }
   }
 
+  /** On mount: restore address tersimpan (kalau ada) */
   useEffect(() => {
-    // coba auto-detect account terhubung
-    // @ts-ignore
-    const eth = window?.ethereum;
-    (async () => {
-      try {
-        if (!eth) return;
-        const acc = await eth.request({ method: "eth_accounts" });
-        if (acc?.length) setAddress(acc[0]);
-      } catch {}
-    })();
+    const saved = localStorage.getItem(LS_KEY);
+    if (saved) setAddress(saved);
   }, []);
 
+  /** Reload missions jika address berubah */
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address]);
 
   const rows = [
-    { id: "m1",  title: "Connect Wallet" },
-    { id: "m2",  title: "First Deposit ≥ 50 USDT" },
-    { id: "m3",  title: "Try Withdraw" },
-    { id: "m4",  title: "Reach 500 USDT (personal)" },
-    { id: "m5",  title: "Reach 1,000 USDT (personal)" },
-    { id: "m6",  title: "Make 3 Deposits" },
-    { id: "m7",  title: "Stay Staked for 7 days" },
-    { id: "m8",  title: "Use Locked (Demo) once" },
-    { id: "m9",  title: "Top 100 Leaderboard (any time)" },
-    { id: "m10", title: "Share Referral Link" },
+    { id: 'm1', title: 'Connect Wallet' },
+    { id: 'm2', title: 'First Deposit ≥ 50 USDT' },
+    { id: 'm3', title: 'Try Withdraw' },
+    { id: 'm4', title: 'Reach 500 USDT (personal)' },
+    { id: 'm5', title: 'Reach 1,000 USDT (personal)' },
+    { id: 'm6', title: 'Make 3 Deposits' },
+    { id: 'm7', title: 'Stay Staked for 7 days' },
+    { id: 'm8', title: 'Use Locked (Demo) once' },
+    { id: 'm9', title: 'Top 100 Leaderboard (any time)' },
+    { id: 'm10', title: 'Share Referral Link' },
   ] as const;
 
   return (
@@ -84,7 +86,10 @@ export default function MissionsPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Missions</h1>
         <div className="flex items-center gap-2">
-          <span className="text-xs text-slate-500">{address ? short(address) : "Not connected"}</span>
+          <span className="text-xs text-slate-500">
+            {address ? short(address) : 'Not connected'}
+          </span>
+
           {!address ? (
             <button
               onClick={connect}
@@ -94,7 +99,10 @@ export default function MissionsPage() {
             </button>
           ) : (
             <button
-              onClick={() => setAddress("")}
+              onClick={() => {
+                setAddress('');
+                localStorage.removeItem(LS_KEY);
+              }}
               className="px-3 py-2 rounded-xl text-sm bg-slate-900 text-white hover:bg-slate-800"
             >
               Disconnect
@@ -134,6 +142,7 @@ export default function MissionsPage() {
                   </tr>
                 );
               })}
+
               {address && !loading && status === null && (
                 <tr>
                   <td className="px-4 py-3 text-slate-500" colSpan={2}>
@@ -141,6 +150,7 @@ export default function MissionsPage() {
                   </td>
                 </tr>
               )}
+
               {!address && (
                 <tr>
                   <td className="px-4 py-3 text-slate-500" colSpan={2}>
