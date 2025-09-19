@@ -1,31 +1,21 @@
-// lib/env.ts
-export function isBrowser() {
-  return typeof window !== 'undefined';
-}
-
+// front-miniapp/lib/env.ts
 export function isLiffEnv(): boolean {
-  if (!isBrowser()) return false;
-  const h = window.location.host || '';
-  return h.includes('liff.line.me'); // LIFF domain
+  if (typeof window === 'undefined') return false
+  try {
+    // LIFF url contains liff.line.me OR navigator userAgent contains Line
+    const host = window.location.host || ''
+    const ua = navigator.userAgent || ''
+    if (host.includes('liff.line.me')) return true
+    if (/Line\/|LIFF/.test(ua)) return true
+    return false
+  } catch {
+    return false
+  }
 }
 
-export function isInAppWebView(): boolean {
-  if (!isBrowser()) return false;
-  const ua = navigator.userAgent || '';
-  // Deteksi umum in-app webview (LINE/FB/IG/Twitter/TikTok, dsb)
-  const signals = [
-    'Line/', 'LIFF', 'FBAN', 'FBAV', 'Instagram', 'Twitter', 'TikTok',
-    'GSA', 'wv' // Android webview
-  ];
-  return signals.some(s => ua.includes(s));
-}
-
-export function isIOS(): boolean {
-  if (!isBrowser()) return false;
-  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
-}
-
-export function isAndroid(): boolean {
-  if (!isBrowser()) return false;
-  return /Android/i.test(navigator.userAgent);
+/** apakah kemungkinan webview yang memblok WalletConnect (LINE WebView)? */
+export function isLikelyBlockedWebview(): boolean {
+  if (typeof window === 'undefined') return false
+  const ua = navigator.userAgent || ''
+  return /Line\/|LIFF|FBAN|FBAV|Instagram/.test(ua)
 }

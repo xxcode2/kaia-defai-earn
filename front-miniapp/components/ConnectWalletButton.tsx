@@ -1,81 +1,85 @@
-'use client'
+// front-miniapp/components/ConnectWalletButton.tsx
+'use client';
 
-import { useAccount, useDisconnect } from 'wagmi'
-import { useEffect, useRef, useState } from 'react'
-import { openExternalBrowser, isInAppWebView } from './OpenExternal'
-import { getAccount, watchAccount } from 'wagmi/actions'
-import { wagmiConfig } from './Web3Root'
+import React, { useCallback, useState } from 'react';
+import { isLiffEnv, isLikelyBlockedWebview } from '@/lib/env';
 
-const short = (a?: string) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : '')
+export default function ConnectWalletButton({ children }: { children?: React.ReactNode }) {
+  const [loading, setLoading] = useState(false);
 
-export default function ConnectWalletButton() {
-  const { address, isConnecting } = useAccount()
-  const { disconnect } = useDisconnect()
-  const [modalReady, setModalReady] = useState(false)
-  const pollingRef = useRef<number | null>(null)
+  const onConnect = useCallback(async () => {
+    setLoading(true);
+    try {
+      // If MiniDapp provider attached to window.ethereum (LIFF path)
+      // @ts-ignore
+      const eth = (window as any).ethereum;
+      if (eth && typeof eth.request === 'function') {
+        try {
+          await eth.request({ method: 'eth_requestAccounts' });
+          // optionally trigger account detect event or reload
+          const acc = await eth.request({ method: 'eth_accounts' });
+          console.log('connected accounts', acc);
+          // emit custom event for app to pick up
+          window.dispatchEvent(new CustomEvent('wallet_connected', { detail: { accounts: acc } }));
+          return;
+        } catch (err: any) {
+          console.warn('eth_requestAccounts failed', err);
+          // continue to try other path
+        }
+      }
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    setModalReady(Boolean((window as any).__W3M_INITIALIZED__))
+      // If web3modal opened helper exists (browser path)
+      const open = (window as any).__W3M_OPEN__;
+      if (typeof open === 'function') {
+        await open({ view: 'Connect' });
+        // web3modal will populate connectors; we give some time then dispatch event
+        setTimeout(async () => {
+          // try detect accounts with injected or wc
+          try {
+            const eth2 = (window as any).ethereum;
+            if (eth2 && typeof eth2.request === 'function') {
+              const accounts = await eth2.request({ method: 'eth_accounts' });
+              window.dispatchEvent(new CustomEvent('wallet_connected', { detail: { accounts } }));
+            }
+          } catch {}
+        }, 1000);
+        return;
+      }
 
-    // watch address changes → simpan ke localStorage agar halaman lain bisa baca
-    const unwatch = watchAccount(wagmiConfig, {
-      onChange(acc) {
-        if (typeof window === 'undefined') return
-        if (acc?.address) localStorage.setItem('moreearn.lastAddress', acc.address)
-      },
-    })
-    return () => unwatch?.()
-  }, [])
+      // Else: if in LIFF but no provider (MiniDapp not available) or webview blocks WC: open external browser
+      if (isLiffEnv() || isLikelyBlockedWebview()) {
+        // If LIFF SDK present, call liff.openWindow to open external
+        // @ts-ignore
+        const liff = (window as any).liff;
+        const externalUrl = location.href;
+        if (liff && typeof liff.openWindow === 'function') {
+          try {
+            liff.openWindow({ url: externalUrl, external: true });
+            return;
+          } catch (e) {
+            // fallback:
+            window.open(externalUrl, '_blank');
+            return;
+          }
+        }
+        // fallback to open new tab
+        window.open(location.href, '_blank');
+        return;
+      }
 
-  const stopPolling = () => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current)
-      pollingRef.current = null
+      alert('No wallet connector found on this device. Install a wallet or ensure WalletConnect project id is configured.');
+    } finally {
+      setLoading(false);
     }
-  }
-  const startPolling = () => {
-    let tries = 0
-    stopPolling()
-    pollingRef.current = window.setInterval(() => {
-      const acc = getAccount(wagmiConfig)
-      if (acc?.address) stopPolling()
-      if (++tries > 12) stopPolling() // ~6s
-    }, 500)
-  }
-
-  const openModal = () => {
-    if (isInAppWebView()) {
-      openExternalBrowser()
-      return
-    }
-    const open = (window as any).__W3M_OPEN__
-    if (typeof open === 'function') {
-      startPolling()
-      open({ view: 'Connect' })
-    } else {
-      alert('Wallet modal belum siap. Muat ulang halaman & periksa NEXT_PUBLIC_WC_PROJECT_ID.')
-    }
-  }
-
-  if (!address) {
-    return (
-      <button
-        onClick={openModal}
-        disabled={isConnecting || !modalReady}
-        className="px-4 py-2 rounded-xl bg-black text-white hover:opacity-90 disabled:opacity-50"
-      >
-        {isConnecting ? 'Connecting…' : 'Connect'}
-      </button>
-    )
-  }
+  }, []);
 
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-sm font-medium px-3 py-1 rounded-lg bg-gray-100">{short(address)}</span>
-      <button onClick={() => disconnect()} className="px-3 py-2 rounded-xl border hover:bg-gray-50">
-        Disconnect
-      </button>
-    </div>
-  )
+    <button
+      onClick={onConnect}
+      className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700"
+      aria-busy={loading}
+    >
+      {children ?? (loading ? 'Connecting…' : 'Connect')}
+    </button>
+  );
 }
