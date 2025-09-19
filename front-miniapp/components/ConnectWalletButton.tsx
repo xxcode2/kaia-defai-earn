@@ -3,6 +3,8 @@
 
 import { useAccount, useDisconnect } from 'wagmi';
 import { useEffect, useState } from 'react';
+import { isInAppWebView } from '@/lib/env';
+import { openExternalBrowser } from './OpenExternal';
 
 function shortAddr(addr?: string) {
   if (!addr) return '';
@@ -16,11 +18,16 @@ export default function ConnectWalletButton() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    // flag di-set oleh Web3Root setelah createWeb3Modal
     setModalReady(Boolean((window as any).__W3M_INITIALIZED__));
   }, []);
 
   const openModal = () => {
+    if (isInAppWebView()) {
+      // kalau somehow guard terlewati, tetap paksa keluar
+      openExternalBrowser(window.location.href);
+      return;
+    }
+
     const open = (window as any).__W3M_OPEN__;
     if (typeof open === 'function') {
       open({ view: 'Connect' });
