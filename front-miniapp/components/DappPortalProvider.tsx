@@ -11,7 +11,7 @@ import React, {
 } from 'react';
 import { useAccount, useDisconnect, useChainId } from 'wagmi';
 import { useWeb3Modal } from '@web3modal/wagmi/react';
-import { initMini, getMiniDapp } from '@/lib/miniDapp';
+import { isInLiff, openExternalBrowser } from '@/lib/liffHelpers';
 
 type Ctx = {
   address: string | null;
@@ -23,35 +23,25 @@ type Ctx = {
 };
 
 const DappPortalContext = createContext<Ctx | null>(null);
-
 const DEFAULT_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001);
 
 export default function DappPortalProvider({ children }: PropsWithChildren) {
   const [address, setAddress] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [isInLiff, setIsInLiff] = useState(false);
+  const [inLiff, setInLiff] = useState(false);
 
-  // wagmi states (sudah disediakan oleh Web3ModalInit di layout)
   const { address: wagmiAddress, isConnected: wagmiConnected } = useAccount();
   const { disconnect: wagmiDisconnect } = useDisconnect();
   const currentChainId = useChainId();
-
   const { open } = useWeb3Modal();
 
-  // Detect LIFF (best-effort)
+  // Deteksi LIFF
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const ua = navigator.userAgent || '';
-    const inLiff = /Line/i.test(ua) || window.location.host.includes('liff.line.me');
-    setIsInLiff(inLiff);
+    setInLiff(isInLiff());
   }, []);
 
-  // Init MiniDapp SDK (tidak mengganggu web)
-  useEffect(() => {
-    initMini().catch(() => {});
-  }, []);
-
-  // Sinkronkan state address dengan wagmi
+  // Sinkron state address dari wagmi
   useEffect(() => {
     if (wagmiConnected && wagmiAddress) {
       const low = wagmiAddress.toLowerCase();
@@ -62,7 +52,7 @@ export default function DappPortalProvider({ children }: PropsWithChildren) {
     }
   }, [wagmiConnected, wagmiAddress]);
 
-  // Restore address jika ada (hanya sebagai tampilan awal)
+  // Restore address jika ada (untuk tampilan awal)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const saved = localStorage.getItem('moreearn.lastAddress');
@@ -73,28 +63,24 @@ export default function DappPortalProvider({ children }: PropsWithChildren) {
     try {
       setIsConnecting(true);
 
-      if (isInLiff) {
-        // LIFF Mini Dapp connect
-        const sdk = getMiniDapp();
-        const res = await sdk.connectWallet();
-        const addr = res?.address?.toLowerCase?.() || '';
-        if (addr) {
-          setAddress(addr);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('moreearn.lastAddress', addr);
-          }
-          return;
-        }
-        // fallback ke modal jika mini dapp gagal/ditolak
-      }
-
-      // Browser: buka Web3Modal
+      // Fallback universal: buka WalletConnect modal
+      // (bekerja di browser; di LIFF kadang deep-link diblok terutama iOS)
       await open();
-      // Alamat akan tersinkron lewat wagmi effect di atas
+
+      // Jika di LIFF & address tidak berubah (deep link gagal), arahkan ke external browser
+      setTimeout(() => {
+        const stillEmpty = !localStorage.getItem('moreearn.lastAddress');
+        if (inLiff && stillEmpty) {
+          const wantExternal = window.confirm(
+            'WalletConnect mungkin diblok oleh WebView LINE.\nBuka di browser eksternal agar bisa connect?'
+          );
+          if (wantExternal) openExternalBrowser();
+        }
+      }, 2000);
     } finally {
       setIsConnecting(false);
     }
-  }, [isInLiff, open]);
+  }, [open, inLiff]);
 
   const disconnect = useCallback(async () => {
     try {
@@ -114,9 +100,9 @@ export default function DappPortalProvider({ children }: PropsWithChildren) {
       isConnecting,
       connect,
       disconnect,
-      isInLiff
+      isInLiff: inLiff
     }),
-    [address, currentChainId, isConnecting, connect, disconnect, isInLiff]
+    [address, currentChainId, isConnecting, connect, disconnect, inLiff]
   );
 
   return (

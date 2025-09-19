@@ -11,10 +11,12 @@ const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
 
 const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
 const metadata = {
-  name: (process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn').replaceAll?.('"','') || 'MORE Earn',
-  description: (process.env.NEXT_PUBLIC_APP_DESC || 'USDT auto-compounding & missions on Kaia').replaceAll?.('"','') || 'MORE Earn',
+  name: (process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn').replaceAll?.('"', '') || 'MORE Earn',
+  description:
+    (process.env.NEXT_PUBLIC_APP_DESC || 'USDT auto-compounding & missions on Kaia').replaceAll?.('"', '') ||
+    'MORE Earn',
   url: appUrl,
-  icons: [`${appUrl}/brand/more.png`],
+  icons: [`${appUrl}/brand/more.png`]
 };
 
 export const wagmiConfig = createConfig({
@@ -23,7 +25,8 @@ export const wagmiConfig = createConfig({
   connectors: [
     walletConnect({ projectId: WC_PROJECT_ID, metadata }),
     injected({ shimDisconnect: true })
-  ]
+  ],
+  ssr: false
 });
 
 const queryClient = new QueryClient();
@@ -35,13 +38,13 @@ export default function Web3ModalInit({ children }: { children: React.ReactNode 
       createWeb3Modal({
         wagmiConfig,
         projectId: WC_PROJECT_ID,
-        themeMode: 'dark',
+        themeMode: 'dark'
       });
     } else {
       console.warn('NEXT_PUBLIC_WC_PROJECT_ID is empty. WalletConnect may not work.');
     }
     w3mInitialized = true;
-    (window as any).__W3M_INITIALIZED__ = true;
+    (window as any).web3modal = (window as any).web3modal ?? undefined; // keep ref if needed
   }
 
   return (
