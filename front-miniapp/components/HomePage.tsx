@@ -20,6 +20,7 @@ import {
 
 import usdtJson from "@/lib/abi/USDT.json";
 import vaultJson from "@/lib/abi/DefaiVault.json";
+import { openWalletModal } from '@/lib/w3m';
 
 import Image from "next/image";
 import DepositLockedCard from "@/components/DepositLockedCard";
@@ -400,11 +401,19 @@ export default function HomePage() {
     }
   }, [leaders, address]);
 
+async function ensureWalletConnected() {
+  // cek jejak address yang kita simpan saat connect
+  const addr = localStorage.getItem('moreearn.lastAddress');
+  if (!addr) {
+    await openWalletModal(); // tampilkan WalletConnect modal
+  }
+}
+
   // ========== Actions ==========
   async function onDepositFlexible() {
     try {
       setLoading(true);
-      if (!hasWindowEth()) throw new Error("Wallet belum terpasang.");
+      await ensureWalletConnected();
       const accs: string[] = await (window as any).ethereum.request({ method: "eth_accounts" });
       if (!accs?.[0]) {
         await (window as any).ethereum.request({ method: "eth_requestAccounts" });
@@ -483,7 +492,7 @@ export default function HomePage() {
   async function onWithdrawUSDT() {
     try {
       setLoading(true);
-      if (!hasWindowEth()) throw new Error("Wallet belum terpasang.");
+      await ensureWalletConnected();
       const accs: string[] = await (window as any).ethereum.request({ method: "eth_accounts" });
       if (!accs?.[0]) {
         await (window as any).ethereum.request({ method: "eth_requestAccounts" });
@@ -528,7 +537,7 @@ export default function HomePage() {
   /* Wallet */
   async function connectWallet() {
     try {
-      if (!hasWindowEth()) throw new Error("Wallet belum terpasang.");
+      await ensureWalletConnected();
       const accs: string[] = await (window as any).ethereum.request({ method: "eth_accounts" });
       if (!accs?.[0]) {
         await (window as any).ethereum.request({ method: "eth_requestAccounts" });
