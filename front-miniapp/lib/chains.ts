@@ -7,13 +7,14 @@ export const kaiaKairos: Chain = {
   nativeCurrency: { name: 'KAIA', symbol: 'KAIA', decimals: 18 },
   rpcUrls: {
     default: { http: ['https://public-en-kairos.node.kaia.io'] },
-    public: { http: ['https://public-en-kairos.node.kaia.io'] }
+    public:  { http: ['https://public-en-kairos.node.kaia.io'] },
   },
   blockExplorers: {
-    default: { name: 'Scope', url: 'https://kairos.scope.kaia.io' }
+    default: { name: 'Scope', url: 'https://kairos.scope.kaia.io' },
   },
-  testnet: true
+  testnet: true,
 };
+
 
 export const kaiaMainnet: Chain = {
   id: 8217,

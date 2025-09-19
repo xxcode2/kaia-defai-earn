@@ -1,37 +1,46 @@
+// components/WalletProviderHybrid.tsx
 'use client';
 
 import { ReactNode, useEffect, useState } from 'react';
 import { isLiffEnv } from '@/lib/env';
 import DappPortalSDK from '@linenext/dapp-portal-sdk';
 import { Web3Provider } from '@kaiachain/ethers-ext';
-import { WagmiProvider } from 'wagmi';
+import { WagmiProvider, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { createWeb3Modal } from '@web3modal/wagmi/react';
 import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
-import { kairos } from '@/lib/chains';
+import { kaiaKairos } from '@/lib/chains'; // <-- ganti: pakai kaiaKairos
 
 const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
 const CLIENT_ID = process.env.NEXT_PUBLIC_MINIDAPP_CLIENT_ID || ''; // dari Kaia portal
 const CHAIN_ID = process.env.NEXT_PUBLIC_CHAIN_ID || '1001';
 
 // metadata buat WalletConnect
+const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
 const metadata = {
-  name: (process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn').replaceAll('"',''),
-  description: (process.env.NEXT_PUBLIC_APP_DESC || '').replaceAll('"',''),
-  url: process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app',
-  icons: [`${process.env.NEXT_PUBLIC_SITE_URL}/brand/more.png`],
+  name: (process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn').replaceAll?.('"', ''),
+  description: (process.env.NEXT_PUBLIC_APP_DESC || 'USDT auto-compounding & missions on Kaia').replaceAll?.('"', ''),
+  url: APP_URL,
+  icons: [`${APP_URL}/brand/more.png`],
 };
 
 // wagmi config (untuk browser)
+const chains = [kaiaKairos] as const;
+const transports = {
+  [kaiaKairos.id]: http(kaiaKairos.rpcUrls.default.http[0]),
+} as const;
+
 const wagmiConfig = defaultWagmiConfig({
-  chains: [kairos],
   projectId: WC_PROJECT_ID,
+  chains,
+  transports,   // penting untuk custom chain
   metadata,
+  ssr: false
 });
 
 const queryClient = new QueryClient();
 
-export default function WalletProviderHybrid({ children }: { children: ReactNode }) {
+export default function WalletProviderHybrid({ children }: { children: React.ReactNode }) {
   const [isLiff, setIsLiff] = useState(false);
   const [dappPortal, setDappPortal] = useState<any>(null);
 
@@ -39,7 +48,7 @@ export default function WalletProviderHybrid({ children }: { children: ReactNode
     if (isLiffEnv()) {
       setIsLiff(true);
 
-      // inisialisasi Mini Dapp SDK
+      // inisialisasi Mini Dapp SDK (LIFF)
       (async () => {
         const sdk = await DappPortalSDK.init({
           clientId: CLIENT_ID,
@@ -49,13 +58,17 @@ export default function WalletProviderHybrid({ children }: { children: ReactNode
         setDappPortal({ sdk, provider });
       })();
     } else {
-      // init Web3Modal sekali
+      // init Web3Modal sekali untuk browser biasa
       if (WC_PROJECT_ID && !(window as any).__W3M_INITIALIZED__) {
-        createWeb3Modal({
+        const modal = createWeb3Modal({
           wagmiConfig,
           projectId: WC_PROJECT_ID,
           themeMode: 'dark',
+          enableAnalytics: false
         });
+        (window as any).__W3M__ = modal;
+        (window as any).__W3M_OPEN__ = (opts?: any) => modal.open(opts);
+        (window as any).__W3M_CLOSE__ = () => modal.close();
         (window as any).__W3M_INITIALIZED__ = true;
       }
     }
@@ -66,7 +79,7 @@ export default function WalletProviderHybrid({ children }: { children: ReactNode
     if (!dappPortal) {
       return <div className="p-4">⏳ Initializing Mini Dapp SDK…</div>;
     }
-    // provider dappPortal bisa dipass via context kalau perlu
+    // TODO: kalau perlu, teruskan provider sdk via context.
     return <>{children}</>;
   }
 
