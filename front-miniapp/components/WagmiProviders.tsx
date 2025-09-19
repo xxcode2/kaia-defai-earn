@@ -1,16 +1,16 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { WagmiProvider, http, createConfig } from 'wagmi';
+import { WagmiProvider, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { walletConnect, injected } from '@wagmi/connectors';
+import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { kaiaKairos } from '@/lib/chains';
 
 const PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
 const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
 
-// metadata untuk WalletConnect (wajib ada icon & url valid)
+// metadata untuk WalletConnect (harus url & icon valid)
 const metadata = {
   name: 'MORE Earn',
   description: 'USDT auto-compounding & missions on Kaia',
@@ -18,19 +18,18 @@ const metadata = {
   icons: [`${SITE_URL}/brand/more.png`]
 };
 
-// Wagmi config (v2)
-export const wagmiConfig = createConfig({
-  chains: [kaiaKairos],
-  transports: {
-    [kaiaKairos.id]: http(kaiaKairos.rpcUrls.default.http[0])
-  },
-  connectors: [
-    walletConnect({
-      projectId: PROJECT_ID,
-      metadata
-    }),
-    injected({ shimDisconnect: true })
-  ],
+// chains + transports
+const chains = [kaiaKairos] as const;
+const transports = {
+  [kaiaKairos.id]: http(kaiaKairos.rpcUrls.default.http[0])
+} as const;
+
+// Buat wagmiConfig via helper resmi Web3Modal v5
+export const wagmiConfig = defaultWagmiConfig({
+  projectId: PROJECT_ID,
+  chains,
+  transports,
+  metadata,
   ssr: false
 });
 

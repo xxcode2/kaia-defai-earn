@@ -1,59 +1,66 @@
+// components/Web3ModalInit.tsx
 'use client';
 
-import { WagmiProvider, createConfig, http } from 'wagmi';
+import { useEffect } from 'react';
+import { WagmiProvider, http } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { injected } from 'wagmi/connectors';
-import { walletConnect } from 'wagmi/connectors';
+import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
 import { createWeb3Modal } from '@web3modal/wagmi/react';
-import { kairos } from '@/lib/chains';
+import { kaiaKairos } from '@/lib/chains';
 
-const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
+const PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
 
-const appUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
+const APP_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
 const metadata = {
   name: (process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn').replaceAll?.('"', '') || 'MORE Earn',
   description:
-    (process.env.NEXT_PUBLIC_APP_DESC || 'USDT auto-compounding & missions on Kaia').replaceAll?.('"', '') ||
-    'MORE Earn',
-  url: appUrl,
-  icons: [`${appUrl}/brand/more.png`]
+    (process.env.NEXT_PUBLIC_APP_DESC || 'USDT auto-compounding & missions on Kaia')
+      .replaceAll?.('"', '') || 'MORE Earn',
+  url: APP_URL,
+  icons: [`${APP_URL}/brand/more.png`],
 };
 
-export const wagmiConfig = createConfig({
-  chains: [kairos],
-  transports: { [kairos.id]: http(kairos.rpcUrls.default.http[0]) },
-  connectors: [
-    walletConnect({ projectId: WC_PROJECT_ID, metadata }),
-    injected({ shimDisconnect: true })
-  ],
-  ssr: false
+// Chains + transport
+const chains = [kaiaKairos] as const;
+const transports = {
+  [kaiaKairos.id]: http(kaiaKairos.rpcUrls.default.http[0]),
+} as const;
+
+// wagmiConfig via helper Web3Modal v5 (tanpa perlu import connectors)
+export const wagmiConfig = defaultWagmiConfig({
+  projectId: PROJECT_ID,
+  chains,
+  transports,
+  metadata,
+  ssr: false,
 });
 
+// Singletons
 const queryClient = new QueryClient();
-const projectId = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
 
-let w3mInitialized = false;
 export default function Web3ModalInit({ children }: { children: React.ReactNode }) {
-  if (typeof window !== 'undefined' && !w3mInitialized) {
-    if (WC_PROJECT_ID) {
-      // ⬇️ simpan instance modal ke window agar bisa dipanggil di LIFF
-      const modal = createWeb3Modal({
-        wagmiConfig,
-        projectId: WC_PROJECT_ID,
-        themeMode: 'dark',
-        // opsional: bikin WalletConnect nongol jelas
-        // enableOnramp: false,
-      });
-      (window as any).__W3M__ = modal;
-      (window as any).__W3M_OPEN__ = (opts?: any) => modal.open(opts);
-      (window as any).__W3M_CLOSE__ = () => modal.close();
-        if ((window as any).__W3M_INITIALIZED__) return;
-    (window as any).__W3M_INITIALIZED__ = true;
-    } else {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!PROJECT_ID) {
       console.warn('NEXT_PUBLIC_WC_PROJECT_ID is empty. WalletConnect may not work.');
+      return;
     }
-    w3mInitialized = true;
-  }
+    // cegah init ganda
+    if ((window as any).__W3M_INITIALIZED__) return;
+
+    const modal = createWeb3Modal({
+      wagmiConfig,
+      projectId: PROJECT_ID,
+      enableAnalytics: false,
+      themeMode: 'dark',
+    });
+
+    // simpan helper ke window (opsional, berguna untuk LIFF)
+    (window as any).__W3M__ = modal;
+    (window as any).__W3M_OPEN__ = (opts?: any) => modal.open(opts);
+    (window as any).__W3M_CLOSE__ = () => modal.close();
+    (window as any).__W3M_INITIALIZED__ = true;
+  }, []);
 
   return (
     <WagmiProvider config={wagmiConfig}>
