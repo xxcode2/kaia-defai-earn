@@ -1,90 +1,66 @@
 // app/missions/page.tsx
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { MissionStatus } from '@/lib/missions';
 import { getMissionStatus } from '@/lib/missions';
-import { openWalletModal } from '@/lib/w3m'; // <- modal WalletConnect kita
+import { useDappPortal } from '@/components/DappPortalProvider';
 
-// util kecil buat shorten address
 function short(addr?: string) {
   if (!addr) return '—';
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
 
-// ambil/simpan address standar app
-const LS_KEY = 'moreearn.lastAddress';
-
 export default function MissionsPage() {
-  const [address, setAddress] = useState<string>('');
+  const { address, connect, disconnect, isConnecting, isInLiff } = useDappPortal();
+
   const [status, setStatus] = useState<MissionStatus | null>(null);
   const [loading, setLoading] = useState(false);
 
-  /** Tampilkan modal WalletConnect & update address dari localStorage */
-  async function connect() {
-    try {
-      await openWalletModal();
-
-      // coba baca address yang diset saat connect (oleh provider global)
-      // coba langsung…
-      let addr = localStorage.getItem(LS_KEY) || '';
-
-      // …kalau belum ada, tunggu sebentar (kasus LIFF/webview kadang delay)
-      if (!addr) {
-        await new Promise((r) => setTimeout(r, 1200));
-        addr = localStorage.getItem(LS_KEY) || '';
+  // Ambil mission status setiap kali address berubah
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!address) {
+        setStatus(null);
+        return;
       }
-
-      if (addr) setAddress(addr);
-    } catch (e: any) {
-      alert(e?.message || 'Connect failed');
-    }
-  }
-
-  /** Muat status missions untuk address saat ini */
-  async function load() {
-    if (!address) {
-      setStatus(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await getMissionStatus(address);
-      setStatus(res ?? null);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  /** On mount: restore address tersimpan (kalau ada) */
-  useEffect(() => {
-    const saved = localStorage.getItem(LS_KEY);
-    if (saved) setAddress(saved);
-  }, []);
-
-  /** Reload missions jika address berubah */
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      setLoading(true);
+      try {
+        const s = await getMissionStatus(address);
+        if (!alive) return;
+        setStatus(s ?? null);
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [address]);
 
-  const rows = [
-    { id: 'm1', title: 'Connect Wallet' },
-    { id: 'm2', title: 'First Deposit ≥ 50 USDT' },
-    { id: 'm3', title: 'Try Withdraw' },
-    { id: 'm4', title: 'Reach 500 USDT (personal)' },
-    { id: 'm5', title: 'Reach 1,000 USDT (personal)' },
-    { id: 'm6', title: 'Make 3 Deposits' },
-    { id: 'm7', title: 'Stay Staked for 7 days' },
-    { id: 'm8', title: 'Use Locked (Demo) once' },
-    { id: 'm9', title: 'Top 100 Leaderboard (any time)' },
-    { id: 'm10', title: 'Share Referral Link' },
-  ] as const;
+  const rows = useMemo(
+    () =>
+      [
+        { id: 'm1', title: 'Connect Wallet' },
+        { id: 'm2', title: 'First Deposit ≥ 50 USDT' },
+        { id: 'm3', title: 'Try Withdraw' },
+        { id: 'm4', title: 'Reach 500 USDT (personal)' },
+        { id: 'm5', title: 'Reach 1,000 USDT (personal)' },
+        { id: 'm6', title: 'Make 3 Deposits' },
+        { id: 'm7', title: 'Stay Staked for 7 days' },
+        { id: 'm8', title: 'Use Locked (Demo) once' },
+        { id: 'm9', title: 'Top 100 Leaderboard (any time)' },
+        { id: 'm10', title: 'Share Referral Link' }
+      ] as const,
+    []
+  );
 
   return (
     <div className="max-w-3xl mx-auto p-4 md:p-8 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Missions</h1>
+
         <div className="flex items-center gap-2">
           <span className="text-xs text-slate-500">
             {address ? short(address) : 'Not connected'}
@@ -93,16 +69,15 @@ export default function MissionsPage() {
           {!address ? (
             <button
               onClick={connect}
-              className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700"
+              disabled={isConnecting}
+              className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+              title={isInLiff ? 'Di LIFF, pilih WalletConnect lalu buka di browser jika diminta' : ''}
             >
-              Connect
+              {isConnecting ? 'Connecting…' : 'Connect'}
             </button>
           ) : (
             <button
-              onClick={() => {
-                setAddress('');
-                localStorage.removeItem(LS_KEY);
-              }}
+              onClick={disconnect}
               className="px-3 py-2 rounded-xl text-sm bg-slate-900 text-white hover:bg-slate-800"
             >
               Disconnect
@@ -164,7 +139,7 @@ export default function MissionsPage() {
       </div>
 
       <p className="text-xs text-slate-500">
-        Catatan: Mission ini dibaca dari data lokal (localStorage) yang juga dipakai di halaman utama.
+        Catatan: Mission dibaca dari data lokal (localStorage) yang juga dipakai di halaman utama.
       </p>
     </div>
   );

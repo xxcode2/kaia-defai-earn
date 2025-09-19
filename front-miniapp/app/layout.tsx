@@ -6,6 +6,8 @@ export const fetchCache = 'force-no-store';
 import type { Metadata } from 'next';
 import './globals.css';
 import NextDynamic from 'next/dynamic';
+import LiffAutoRedirect from '@/components/LiffAutoRedirect';
+
 
 const Web3ModalInit = NextDynamic(() => import('@/components/Web3ModalInit'), { ssr: false });
 const DappPortalProvider = NextDynamic(() => import('@/components/DappPortalProvider'), { ssr: false });
@@ -34,13 +36,18 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body>
-        <LiffProvider>
-          <Web3ModalInit>
-            <DappPortalProvider>{children}</DappPortalProvider>
-          </Web3ModalInit>
-        </LiffProvider>
-      </body>
+    <body>
+  {/* auto-redirect untuk query LIFF */}
+  <LiffAutoRedirect />
+  {/* provider lain & isi */}
+  <LiffProvider>
+    <Web3ModalInit>
+      <DappPortalProvider>
+        {children}
+      </DappPortalProvider>
+    </Web3ModalInit>
+  </LiffProvider>
+</body>
     </html>
   );
 }
