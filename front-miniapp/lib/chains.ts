@@ -15,16 +15,15 @@ export const kaiaKairos: Chain = {
   testnet: true,
 };
 
-
 export const kaiaMainnet: Chain = {
   id: 8217,
   name: 'Kaia',
   nativeCurrency: { name: 'KAIA', symbol: 'KAIA', decimals: 18 },
   rpcUrls: {
     default: { http: ['https://public-en.node.kaia.io'] },
-    public: { http: ['https://public-en.node.kaia.io'] }
+    public:  { http: ['https://public-en.node.kaia.io'] },
   },
   blockExplorers: {
-    default: { name: 'Scope', url: 'https://scope.kaia.io' }
-  }
+    default: { name: 'Scope', url: 'https://scope.kaia.io' },
+  },
 };

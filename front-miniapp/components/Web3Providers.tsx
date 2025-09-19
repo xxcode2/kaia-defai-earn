@@ -1,53 +1,68 @@
-'use client'
+'use client';
 
-import { PropsWithChildren, useEffect, useMemo } from 'react'
-import { WagmiConfig, createConfig, http } from 'wagmi'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { createWeb3Modal } from '@web3modal/wagmi/react'
+import { ReactNode, useEffect } from 'react';
+import { WagmiProvider, http } from 'wagmi';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
+import { createWeb3Modal } from '@web3modal/wagmi/react';
+import { kaiaKairos, kaiaMainnet } from '@/lib/chains';
 
-import { kairos, kaia } from '@/lib/chains'
+const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
+const ENV_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001);
 
-const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim()
-const ENV_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001)
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
+const metadata = {
+  name: (process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn').replaceAll?.('"', '') || 'MORE Earn',
+  description:
+    (process.env.NEXT_PUBLIC_APP_DESC || 'USDT auto-compounding & missions on Kaia')
+      .replaceAll?.('"', '') || 'MORE Earn',
+  url: SITE_URL,
+  icons: [`${SITE_URL}/brand/more.png`],
+};
 
-const CHAIN = ENV_CHAIN_ID === 8217 ? kaia : kairos
-const CHAINS = [CHAIN] as const
+// pilih chain berdasar ENV
+const activeChain = ENV_CHAIN_ID === 8217 ? kaiaMainnet : kaiaKairos;
+const chains = [activeChain] as const;
+const transports = {
+  [activeChain.id]: http(activeChain.rpcUrls.default.http[0]),
+} as const;
 
-const queryClient = new QueryClient()
+// wagmi config via helper Web3Modal v5
+export const wagmiConfig = defaultWagmiConfig({
+  projectId: WC_PROJECT_ID,
+  chains,
+  transports,
+  metadata,
+  ssr: false,
+});
 
-const wagmiConfig = createConfig({
-  chains: CHAINS,
-  transports: {
-    [CHAIN.id]: http(CHAIN.rpcUrls.default.http[0])
-  },
-  multiInjectedProviderDiscovery: false, // biar gak “nyari2” extension
-  ssr: true
-})
+const queryClient = new QueryClient();
 
-export default function Web3Providers({ children }: PropsWithChildren) {
+export default function Web3Providers({ children }: { children: ReactNode }) {
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     if (!WC_PROJECT_ID) {
-      console.warn('Missing NEXT_PUBLIC_WC_PROJECT_ID. WalletConnect modal will not work.')
-      return
+      console.warn('NEXT_PUBLIC_WC_PROJECT_ID is empty. WalletConnect may not work.');
+      return;
     }
-    // Init Web3Modal (WalletConnect)
-    createWeb3Modal({
+    if ((window as any).__W3M_INITIALIZED__) return;
+
+    const modal = createWeb3Modal({
       wagmiConfig,
       projectId: WC_PROJECT_ID,
-      // Optional UI tweaks
       enableAnalytics: false,
-      themeMode: 'light',
-    })
-  }, [])
+      themeMode: 'dark',
+    });
 
-  const Providers = useMemo(
-    () => (
-      <QueryClientProvider client={queryClient}>
-        <WagmiConfig config={wagmiConfig}>{children}</WagmiConfig>
-      </QueryClientProvider>
-    ),
-    [children]
-  )
+    (window as any).__W3M__ = modal;
+    (window as any).__W3M_OPEN__ = (opts?: any) => modal.open(opts);
+    (window as any).__W3M_CLOSE__ = () => modal.close();
+    (window as any).__W3M_INITIALIZED__ = true;
+  }, []);
 
-  return Providers
+  return (
+    <WagmiProvider config={wagmiConfig}>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </WagmiProvider>
+  );
 }
