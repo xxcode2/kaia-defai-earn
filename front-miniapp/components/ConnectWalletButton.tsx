@@ -1,85 +1,97 @@
-// front-miniapp/components/ConnectWalletButton.tsx
+// components/ConnectWalletButton.tsx
 'use client';
 
-import React, { useCallback, useState } from 'react';
-import { isLiffEnv, isLikelyBlockedWebview } from '@/lib/env';
+import React, { useCallback, useState, useEffect } from 'react';
+import { useWeb3Modal } from '@web3modal/wagmi/react';
+import { useAccount } from 'wagmi';
 
-export default function ConnectWalletButton({ children }: { children?: React.ReactNode }) {
-  const [loading, setLoading] = useState(false);
+function isInLiff() {
+  if (typeof window === 'undefined') return false;
+  const liff = (window as any).liff;
+  return !!(liff && typeof liff.isInClient === 'function'
+    ? liff.isInClient()
+    : window.location.host.includes('liff.line.me'));
+}
 
-  const onConnect = useCallback(async () => {
-    setLoading(true);
-    try {
-      // If MiniDapp provider attached to window.ethereum (LIFF path)
-      // @ts-ignore
-      const eth = (window as any).ethereum;
-      if (eth && typeof eth.request === 'function') {
-        try {
-          await eth.request({ method: 'eth_requestAccounts' });
-          // optionally trigger account detect event or reload
-          const acc = await eth.request({ method: 'eth_accounts' });
-          console.log('connected accounts', acc);
-          // emit custom event for app to pick up
-          window.dispatchEvent(new CustomEvent('wallet_connected', { detail: { accounts: acc } }));
-          return;
-        } catch (err: any) {
-          console.warn('eth_requestAccounts failed', err);
-          // continue to try other path
-        }
-      }
+export default function ConnectWalletButton() {
+  const { address } = useAccount();
+  const { open: w3mOpen } = useWeb3Modal();
+  const [liffEnv, setLiffEnv] = useState(false);
+  const [connecting, setConnecting] = useState(false);
 
-      // If web3modal opened helper exists (browser path)
-      const open = (window as any).__W3M_OPEN__;
-      if (typeof open === 'function') {
-        await open({ view: 'Connect' });
-        // web3modal will populate connectors; we give some time then dispatch event
-        setTimeout(async () => {
-          // try detect accounts with injected or wc
-          try {
-            const eth2 = (window as any).ethereum;
-            if (eth2 && typeof eth2.request === 'function') {
-              const accounts = await eth2.request({ method: 'eth_accounts' });
-              window.dispatchEvent(new CustomEvent('wallet_connected', { detail: { accounts } }));
-            }
-          } catch {}
-        }, 1000);
-        return;
-      }
-
-      // Else: if in LIFF but no provider (MiniDapp not available) or webview blocks WC: open external browser
-      if (isLiffEnv() || isLikelyBlockedWebview()) {
-        // If LIFF SDK present, call liff.openWindow to open external
-        // @ts-ignore
-        const liff = (window as any).liff;
-        const externalUrl = location.href;
-        if (liff && typeof liff.openWindow === 'function') {
-          try {
-            liff.openWindow({ url: externalUrl, external: true });
-            return;
-          } catch (e) {
-            // fallback:
-            window.open(externalUrl, '_blank');
-            return;
-          }
-        }
-        // fallback to open new tab
-        window.open(location.href, '_blank');
-        return;
-      }
-
-      alert('No wallet connector found on this device. Install a wallet or ensure WalletConnect project id is configured.');
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    setLiffEnv(isInLiff());
   }, []);
 
+  const connect = useCallback(async () => {
+    setConnecting(true);
+    try {
+      if (liffEnv && (window as any).DAPP_PORTAL_SDK) {
+        const sdk = (window as any).DAPP_PORTAL_SDK;
+        const provider = sdk.getWalletProvider();
+        const accs = await provider.request({ method: 'eth_requestAccounts' });
+        console.log('connected via MiniDapp', accs);
+        return;
+      }
+
+      if (liffEnv && !(window as any).DAPP_PORTAL_SDK) {
+        const url = window.location.href.includes('?')
+          ? `${window.location.href}&from=liff`
+          : `${window.location.href}?from=liff`;
+        const liff = (window as any).liff;
+        if (liff?.openWindow) {
+          await liff.openWindow({ url, external: true });
+        } else {
+          window.open(url, '_blank');
+        }
+        return;
+      }
+
+      if ((window as any).__W3M_OPEN__) {
+        await (window as any).__W3M_OPEN__();
+      } else if (w3mOpen) {
+        await w3mOpen();
+      } else {
+        alert('Wallet modal not ready.');
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      alert('Connect failed: ' + msg);
+    } finally {
+      setConnecting(false);
+    }
+  }, [liffEnv, w3mOpen]);
+
+  if (address) {
+    return (
+      <button className="px-3 py-2 rounded-xl text-sm bg-slate-900 text-white hover:bg-slate-800">
+        Connected ({address.slice(0, 6)}…{address.slice(-4)})
+      </button>
+    );
+  }
+
+  if (liffEnv && !(window as any).DAPP_PORTAL_SDK) {
+    return (
+      <div className="flex gap-2">
+        <button onClick={connect} className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white">
+          Buka di Browser
+        </button>
+        <button
+          onClick={() => {
+            navigator.clipboard?.writeText(window.location.href);
+            alert('Link disalin. Buka di Safari/Chrome lalu Connect.');
+          }}
+          className="px-3 py-2 rounded-xl text-sm border"
+        >
+          Salin Link
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <button
-      onClick={onConnect}
-      className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700"
-      aria-busy={loading}
-    >
-      {children ?? (loading ? 'Connecting…' : 'Connect')}
+    <button onClick={connect} className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white" disabled={connecting}>
+      {connecting ? 'Connecting…' : 'Connect'}
     </button>
   );
 }

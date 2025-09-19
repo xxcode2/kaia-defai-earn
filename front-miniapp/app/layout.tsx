@@ -1,50 +1,23 @@
 // app/layout.tsx
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-export const fetchCache = 'force-no-store';
-
-import type { Metadata } from 'next';
 import './globals.css';
-import Web3Root from '@/components/Web3Root';
-import InAppWebviewGuard from '@/components/InAppWebviewGuard';
+import type { Metadata } from 'next';
+import dynamic from 'next/dynamic';
 import WalletProviderHybrid from '@/components/WalletProviderHybrid';
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
+const Web3ModalInit = dynamic(() => import('@/components/Web3ModalInit'), { ssr: false });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(SITE_URL),
-  title: {
-    default: 'MORE Earn',
-    template: '%s | MORE Earn'
-  },
-  description:
-    'Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.',
-  openGraph: {
-    title: 'MORE Earn',
-    description:
-      'Simple USDT yield on Kaia with auto-compounding vault shares, missions, leaderboard, and Mini Dapp payment.',
-    url: '/',
-    siteName: 'MORE Earn',
-    images: ['/og/cover.png'],
-    type: 'website'
-  },
-  twitter: {
-    card: 'summary_large_image',
-    images: ['/og/cover.png']
-  },
-  icons: { icon: '/brand/more.png' }
+  title: 'MORE Earn',
+  description: 'Earn USDT on Kaia',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body>
-           <WalletProviderHybrid>
-        <Web3Root>
-          {/* Guard ini yang bikin user keluar dari in-app webview */}
-          <InAppWebviewGuard>{children}</InAppWebviewGuard>
-        </Web3Root>
-        </WalletProviderHybrid>
+        <Web3ModalInit>
+          <WalletProviderHybrid>{children}</WalletProviderHybrid>
+        </Web3ModalInit>
       </body>
     </html>
   );
