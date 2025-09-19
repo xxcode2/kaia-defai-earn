@@ -30,6 +30,7 @@ export const wagmiConfig = createConfig({
 });
 
 const queryClient = new QueryClient();
+const projectId = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
 
 let w3mInitialized = false;
 export default function Web3ModalInit({ children }: { children: React.ReactNode }) {
@@ -46,6 +47,8 @@ export default function Web3ModalInit({ children }: { children: React.ReactNode 
       (window as any).__W3M__ = modal;
       (window as any).__W3M_OPEN__ = (opts?: any) => modal.open(opts);
       (window as any).__W3M_CLOSE__ = () => modal.close();
+        if ((window as any).__W3M_INITIALIZED__) return;
+    (window as any).__W3M_INITIALIZED__ = true;
     } else {
       console.warn('NEXT_PUBLIC_WC_PROJECT_ID is empty. WalletConnect may not work.');
     }
