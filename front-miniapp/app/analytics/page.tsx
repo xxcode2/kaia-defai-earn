@@ -341,7 +341,7 @@ export default function AnalyticsPage() {
             ]}
           />
           <div className="text-xs text-slate-500 mt-2">
-            Tip: kalau banyak drop di “Deep-link OK”, biasanya WebView LINE memblokir WalletConnect deeplink. Tampilkan prompt “Open in external browser”.
+            Tip: If there are a lot of drops in "Deep-link OK," LINE WebView is usually blocking WalletConnect deeplinks. Display the prompt "Open in external browser".
           </div>
         </Card>
       </section>
@@ -399,8 +399,8 @@ export default function AnalyticsPage() {
         </Card>
         <Card title="Notes">
           <ul className="text-sm list-disc pl-5 text-slate-600">
-            <li>Data ini contoh. Sambungkan ke storage harian TVL untuk grafik akurat.</li>
-            <li>Funnel penting buat debug WalletConnect di LIFF.</li>
+            <li>DThis data is an example. Connect to TVL daily storage for accurate charts.</li>
+            <li>Funnel is important for debugging WalletConnect in LIFF.</li>
           </ul>
         </Card>
       </section>
