@@ -97,4 +97,5 @@ Frontend default di http://localhost:3000.
 
 ## ⚙️ CONTACT  
 Discord : xxcode
+
 Email : axelltestnet@gmail.com
