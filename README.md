@@ -95,6 +95,17 @@ npm run dev
 Frontend default di http://localhost:3000.
 ```
 
+## 🔗 Links
+- Demo: [more-earn.vercel.app](https://more-earn.vercel.app)
+- LIFF Mini App: [LINE link](https://liff.line.me/2008111133-qlje8nKG)
+- GitHub: [Repo](https://github.com/xxcode2/kaia-defai-earn)
+- Demo Video: [YouTube](https://www.youtube.com/watch?v=T6wtPfLiCWI)
+- Demo Video (Phone): [Shorts](https://www.youtube.com/shorts/6Dhm7Xpon8g)
+- Analytics: [more-earn.vercel.app/analytics](https://more-earn.vercel.app/analytics)
+- Dune: [Dune Dashboard](https://dune.com/axell/more-earn)
+- Pitch Deck: [DocSend](https://docsend.com/view/mgpi8g8hkw8ygbgz)
+
+
 ## ⚙️ CONTACT  
 Discord : xxcode
 
