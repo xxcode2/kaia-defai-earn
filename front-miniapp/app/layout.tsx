@@ -1,24 +1,22 @@
-// app/layout.tsx
-import './globals.css';
-import type { Metadata } from 'next';
-import dynamic from 'next/dynamic';
-import WalletProviderHybrid from '@/components/WalletProviderHybrid';
+import type { Metadata } from 'next'
+import './globals.css'
+import Web3Providers from '@/components/Web3Providers'
 
-const Web3ModalInit = dynamic(() => import('@/components/Web3ModalInit'), { ssr: false });
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://example.com'
 
 export const metadata: Metadata = {
-  title: 'MORE Earn',
-  description: 'Earn USDT on Kaia',
-};
+  metadataBase: new URL(SITE_URL),
+  title: { default: 'MORE Earn', template: '%s | MORE Earn' },
+  description: 'USDT yield + Swap (multi-chain EVM)',
+  openGraph: { title: 'MORE Earn', url: '/', images: ['/og/cover.png'] }
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <body>
-        <Web3ModalInit>
-          <WalletProviderHybrid>{children}</WalletProviderHybrid>
-        </Web3ModalInit>
+        <Web3Providers>{children}</Web3Providers>
       </body>
     </html>
-  );
+  )
 }

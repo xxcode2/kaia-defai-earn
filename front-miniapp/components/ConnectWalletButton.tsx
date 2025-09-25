@@ -1,125 +1,77 @@
-// components/ConnectWalletButton.tsx
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import { useWeb3Modal } from '@web3modal/wagmi/react';
-import { useAccount } from 'wagmi';
-import { getConnectors, connect, disconnect, switchChain } from 'wagmi/actions';
-import { wagmiConfig } from '@/components/Web3ModalInit';
+import { useEffect } from 'react'
+import {
+  useAccount, useConnect, useDisconnect, useChainId, useSwitchChain, useChains
+} from 'wagmi'
 
-function isInLiff() {
-  if (typeof window === 'undefined') return false;
-  const liff = (window as any).liff;
-  return !!(liff && typeof liff.isInClient === 'function'
-    ? liff.isInClient()
-    : window.location.host.includes('liff.line.me'));
+function short(addr?: string) {
+  if (!addr) return '—'
+  return `${addr.slice(0,6)}…${addr.slice(-4)}`
 }
 
 export default function ConnectWalletButton() {
-  const { address, isConnected } = useAccount();
-  const { open } = useWeb3Modal();
-  const [liffEnv, setLiffEnv] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { address, isConnected } = useAccount()
+  const chainId = useChainId()
+  const chains = useChains()
+  const target = chains[0] // default ke chain pertama di config
 
+  const { connectors, connect, isPending: isConnecting, error: connectError } = useConnect()
+  const { disconnect } = useDisconnect()
+  const { switchChain, isPending: isSwitching } = useSwitchChain()
+
+  // Auto-switch kalau chainnya berbeda
   useEffect(() => {
-    setLiffEnv(isInLiff());
-  }, []);
-
-  const short = useMemo(() => {
-    if (!address) return '';
-    return `${address.slice(0, 6)}…${address.slice(-4)}`;
-  }, [address]);
-
-  async function smartConnect() {
-    setBusy(true);
-    try {
-      // 1) Kalau di LIFF tapi SDK MiniDapp tidak ada → buka eksternal browser
-      if (liffEnv && !(window as any).DAPP_PORTAL_SDK) {
-        const url = window.location.href.includes('?')
-          ? `${window.location.href}&from=liff`
-          : `${window.location.href}?from=liff`;
-        const liff = (window as any).liff;
-        if (liff?.openWindow) await liff.openWindow({ url, external: true });
-        else window.open(url, '_blank');
-        return;
-      }
-
-      // 2) Prioritaskan injected (OKX/Bitget/MetaMask in-app browser)
-      const injected = getConnectors(wagmiConfig).find((c) => c.id === 'injected');
-      if (injected) {
-        const provider = await injected.getProvider?.();
-        if (provider) {
-          await connect(wagmiConfig, { connector: injected });
-          // pastikan sudah Kairos (1001)
-          await switchChain(wagmiConfig, { chainId: 1001 }).catch(() => {});
-          return;
-        }
-      }
-
-      // 3) Tidak ada injected → buka WalletConnect modal
-      if ((window as any).__W3M_OPEN__) await (window as any).__W3M_OPEN__({ view: 'Connect' });
-      else if (open) await open({ view: 'Connect' });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      alert('Connect failed: ' + msg);
-    } finally {
-      setBusy(false);
+    if (isConnected && target && chainId !== target.id) {
+      switchChain({ chainId: target.id }).catch(() => {})
     }
-  }
+  }, [isConnected, chainId, target, switchChain])
 
-  async function doDisconnect() {
-    setBusy(true);
-    try {
-      await disconnect(wagmiConfig);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // UI khusus LIFF tanpa SDK — ajak buka di browser
-  if (liffEnv && !(window as any).DAPP_PORTAL_SDK) {
-    return (
-      <div className="flex gap-2">
-        <button
-          onClick={smartConnect}
-          className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-          disabled={busy}
-        >
-          {busy ? 'Opening…' : 'Buka di Browser'}
-        </button>
-        <button
-          onClick={() => {
-            navigator.clipboard?.writeText(window.location.href);
-            alert('Link disalin. Buka di Safari/Chrome lalu tekan Connect.');
-          }}
-          className="px-3 py-2 rounded-xl text-sm border"
-        >
-          Salin Link
-        </button>
-      </div>
-    );
-  }
-
-  // Default
   if (isConnected && address) {
+    const wrong = target && chainId !== target.id
     return (
-      <button
-        onClick={doDisconnect}
-        className="px-3 py-2 rounded-xl text-sm bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50"
-        disabled={busy}
-      >
-        {busy ? 'Disconnecting…' : `Disconnect (${short})`}
-      </button>
-    );
+      <div className="flex items-center gap-2">
+        <span className="text-xs px-2 py-1 rounded-lg bg-gray-100">{short(address)}</span>
+        {wrong ? (
+          <button
+            onClick={() => switchChain({ chainId: target.id })}
+            className="px-3 py-2 rounded-xl bg-amber-500 text-white hover:bg-amber-600 disabled:opacity-50"
+            disabled={isSwitching}
+            title={`Switch to ${target?.name}`}
+          >
+            {isSwitching ? 'Switching…' : `Switch ${target?.name}`}
+          </button>
+        ) : (
+          <button
+            onClick={() => disconnect()}
+            className="px-3 py-2 rounded-xl border hover:bg-gray-50"
+            title="Disconnect"
+          >
+            Disconnect
+          </button>
+        )}
+      </div>
+    )
   }
 
   return (
-    <button
-      onClick={smartConnect}
-      className="px-3 py-2 rounded-xl text-sm bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
-      disabled={busy}
-    >
-      {busy ? 'Connecting…' : 'Connect'}
-    </button>
-  );
+    <div className="flex flex-wrap gap-2">
+      {connectors.map((c) => (
+        <button
+          key={c.id}
+          onClick={() => connect({ connector: c })}
+          className="px-3 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+          disabled={isConnecting || !c.ready}
+          title={c.name}
+        >
+          {isConnecting ? 'Connecting…' : `Connect ${c.name}`}
+        </button>
+      ))}
+      {connectError && (
+        <span className="text-xs text-red-600">
+          {(connectError as any)?.message || 'Connect failed'}
+        </span>
+      )}
+    </div>
+  )
 }

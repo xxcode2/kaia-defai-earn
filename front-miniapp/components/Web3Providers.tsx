@@ -1,68 +1,53 @@
 'use client';
 
-import { ReactNode, useEffect } from 'react';
-import { WagmiProvider, http } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { defaultWagmiConfig } from '@web3modal/wagmi/react/config';
-import { createWeb3Modal } from '@web3modal/wagmi/react';
-import { kaiaKairos, kaiaMainnet } from '@/lib/chains';
+import { ReactNode, useMemo } from 'react'
+import { WagmiProvider, createConfig, http } from 'wagmi'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { injected, walletConnect } from 'wagmi/connectors'
+import { kaiaKairos, baseSepolia } from '@/lib/chains'
 
-const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim();
-const ENV_CHAIN_ID = Number(process.env.NEXT_PUBLIC_CHAIN_ID || 1001);
+const queryClient = new QueryClient()
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'https://more-earn.vercel.app';
+// Pilih chain lewat env (comma separated id), default: Kairos + Base Sepolia
+// Contoh: NEXT_PUBLIC_CHAINS=1001,84532
+const envIds = (process.env.NEXT_PUBLIC_CHAINS || '1001,84532')
+  .split(',')
+  .map(s => Number(s.trim()))
+  .filter(Boolean)
+
+const allChains = [kaiaKairos, baseSepolia] as const
+const chains = allChains.filter(c => envIds.includes(c.id))
+
+const APP_URL  = process.env.NEXT_PUBLIC_SITE_URL || 'https://example.com'
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn'
+const APP_DESC = process.env.NEXT_PUBLIC_APP_DESC || 'Stable yield + Swap (multi-chain)'
+const WC_PROJECT_ID = (process.env.NEXT_PUBLIC_WC_PROJECT_ID || '').trim()
+
 const metadata = {
-  name: (process.env.NEXT_PUBLIC_APP_NAME || 'MORE Earn').replaceAll?.('"', '') || 'MORE Earn',
-  description:
-    (process.env.NEXT_PUBLIC_APP_DESC || 'USDT auto-compounding & missions on Kaia')
-      .replaceAll?.('"', '') || 'MORE Earn',
-  url: SITE_URL,
-  icons: [`${SITE_URL}/brand/more.png`],
-};
+  name: APP_NAME.replaceAll?.('"','') ?? APP_NAME,
+  description: APP_DESC.replaceAll?.('"','') ?? APP_DESC,
+  url: APP_URL,
+  icons: [`${APP_URL}/brand/more.png`]
+}
 
-// pilih chain berdasar ENV
-const activeChain = ENV_CHAIN_ID === 8217 ? kaiaMainnet : kaiaKairos;
-const chains = [activeChain] as const;
-const transports = {
-  [activeChain.id]: http(activeChain.rpcUrls.default.http[0]),
-} as const;
-
-// wagmi config via helper Web3Modal v5
-export const wagmiConfig = defaultWagmiConfig({
-  projectId: WC_PROJECT_ID,
+export const wagmiConfig = createConfig({
   chains,
-  transports,
-  metadata,
-  ssr: false,
-});
-
-const queryClient = new QueryClient();
+  transports: Object.fromEntries(
+    chains.map((c) => [c.id, http(c.rpcUrls.default.http[0])])
+  ),
+  connectors: [
+    injected({ shimDisconnect: true }),
+    ...(WC_PROJECT_ID ? [walletConnect({ projectId: WC_PROJECT_ID, metadata })] : [])
+  ],
+  ssr: false
+})
 
 export default function Web3Providers({ children }: { children: ReactNode }) {
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    if (!WC_PROJECT_ID) {
-      console.warn('NEXT_PUBLIC_WC_PROJECT_ID is empty. WalletConnect may not work.');
-      return;
-    }
-    if ((window as any).__W3M_INITIALIZED__) return;
-
-    const modal = createWeb3Modal({
-      wagmiConfig,
-      projectId: WC_PROJECT_ID,
-      enableAnalytics: false,
-      themeMode: 'dark',
-    });
-
-    (window as any).__W3M__ = modal;
-    (window as any).__W3M_OPEN__ = (opts?: any) => modal.open(opts);
-    (window as any).__W3M_CLOSE__ = () => modal.close();
-    (window as any).__W3M_INITIALIZED__ = true;
-  }, []);
-
-  return (
+  const tree = useMemo(() => (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     </WagmiProvider>
-  );
+  ), [children])
+
+  return tree
 }

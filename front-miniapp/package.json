@@ -6,20 +6,14 @@
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
-       "lint": "next lint",
-     "export:dune": "node scripts/export-dune.mjs"
+    "lint": "next lint",
+    "export:dune": "node scripts/export-dune.mjs"
   },
   "dependencies": {
     "@kaiachain/ethers-ext": "^2.1.0",
     "@kaiachain/js-ext-core": "^2.1.0",
-    "@line/liff": "^2.22.0",
-    "@linenext/dapp-portal-sdk": "^1.4.4",
     "@tanstack/react-query": "^5.89.0",
     "@walletconnect/ethereum-provider": "^2.21.8",
-    "@walletconnect/modal": "^2.7.0",
-    "@web3modal/core": "^5",
-    "@web3modal/ui": "^5",
-    "@web3modal/wagmi": "^5",
     "clsx": "^2.1.1",
     "dotenv": "^17.2.2",
     "ethers": "^6.13.2",

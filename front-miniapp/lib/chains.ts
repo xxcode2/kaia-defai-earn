@@ -1,34 +1,30 @@
-// front-miniapp/lib/chains.ts
-import { defineChain } from 'viem'
+// lib/chains.ts
+import type { Chain } from 'wagmi'
 
-// Kaia testnet (Kairos)
-export const kaiaKairos = defineChain({
+export const kaiaKairos = {
   id: 1001,
   name: 'Kaia Kairos',
-  network: 'kaia-kairos',
   nativeCurrency: { name: 'KAIA', symbol: 'KAIA', decimals: 18 },
   rpcUrls: {
     default: { http: ['https://public-en-kairos.node.kaia.io'] },
-    public: { http: ['https://public-en-kairos.node.kaia.io'] }
+    public:  { http: ['https://public-en-kairos.node.kaia.io'] }
   },
-  blockExplorers: { default: { name: 'Scope', url: 'https://kairos.scope.kaia.io' } },
+  blockExplorers: {
+    default: { name: 'Scope', url: 'https://kairos.scope.kaia.io' }
+  },
   testnet: true
-})
+} as const satisfies Chain
 
-// Kaia mainnet
-export const kaiaMainnet = defineChain({
-  id: 8217,
-  name: 'Kaia Mainnet',
-  network: 'kaia',
-  nativeCurrency: { name: 'KAIA', symbol: 'KAIA', decimals: 18 },
+export const baseSepolia = {
+  id: 84532,
+  name: 'Base Sepolia',
+  nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
   rpcUrls: {
-    default: { http: ['https://public-en.node.kaia.io'] },
-    public: { http: ['https://public-en.node.kaia.io'] }
+    default: { http: ['https://sepolia.base.org'] },
+    public:  { http: ['https://sepolia.base.org'] }
   },
-  blockExplorers: { default: { name: 'Scope', url: 'https://scope.kaia.io' } },
-  testnet: false
-})
-
-// aliases for previous import names used in project
-export const kairos = kaiaKairos
-export const kaia = kaiaMainnet
+  blockExplorers: {
+    default: { name: 'Basescan', url: 'https://sepolia.basescan.org' }
+  },
+  testnet: true
+} as const satisfies Chain
